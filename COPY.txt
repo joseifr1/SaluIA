@@ -1,0 +1,86 @@
+# Textos de la aplicación UC•CHRISTUS
+
+## Mensajes del sistema
+- "Sistema operativo" - Estado del sistema en el header
+- "Recuerde cerrar sesión al terminar" - Aviso en menú de usuario
+
+## Navegación
+- "Red de Salud UC•CHRISTUS" - Nombre de la aplicación
+- "Saltar al contenido principal" - Link de accesibilidad
+- "Abrir menú de navegación" - Label del botón de menú
+- "Navegación principal" - Label del sidebar
+
+### Elementos del menú
+- "Inicio" - Home
+- "Nuevo Registro" - Crear registro médico
+- "Mis Registros" - Historial de registros
+- "Análisis" - Dashboard analítico
+- "Ayuda" - Sección de ayuda
+- "Administración" - Panel de admin
+
+## Formularios y campos
+### Datos del paciente
+- "RUT" - Rol Único Tributario
+- "Nombres" - Primer y segundo nombre
+- "Apellidos" - Apellido paterno y materno
+- "Fecha de Nacimiento"
+- "Sexo" - Género del paciente
+- "Previsión" - Sistema de salud
+- "Teléfono" - Número de contacto
+- "Email" - Correo electrónico
+
+### Parámetros clínicos
+- "Presión Arterial" (mmHg)
+- "Frecuencia Cardíaca" (lpm - latidos por minuto)
+- "Frecuencia Respiratoria" (rpm - respiraciones por minuto)
+- "Temperatura" (°C - grados Celsius)
+- "Saturación de Oxígeno" (%)
+
+### Diagnóstico
+- "Diagnóstico CIE-10" - Clasificación Internacional de Enfermedades
+- "Buscar diagnóstico..." - Placeholder para autocomplete
+
+## Estados y resultados
+### Estados de registro
+- "Borrador" - En proceso de creación
+- "Enviado" - Enviado para evaluación
+- "Evaluando" - En proceso de evaluación por IA
+- "Completado" - Proceso finalizado
+
+### Resultados de evaluación
+- "Aplica para Activación de Ley"
+- "No Aplica para Activación de Ley"
+- "Resultado Incierto - Revisión Manual Requerida"
+
+## Acciones
+- "Guardar borrador" - Salvar progreso
+- "Evaluar con IA" - Enviar para evaluación automática
+- "Aceptar Recomendación de la Ley"
+- "Rechazar Recomendación de la Ley"
+- "Finalizar proceso"
+- "Exportar CSV" - Descargar datos en Excel
+- "Imprimir" - Crear versión imprimible
+- "Exportar PDF" - Descargar como PDF
+
+## Mensajes de confirmación
+- "¿Está seguro de que desea rechazar este usuario?"
+- "¿Está seguro de que desea deshabilitar este usuario?"
+- "Usuario aprobado exitosamente"
+- "Caso [episodio] [acción] exitosamente"
+
+## Textos de ayuda
+- "Nivel de confianza: X%" - Precisión de la evaluación IA
+- "La decisión final es responsabilidad del profesional médico"
+- "Se registrará la acción tomada para auditoría y seguimiento"
+- "Es posible proporcionar feedback sobre la evaluación de IA"
+
+## Accesibilidad
+- "Alto contraste" - Modo de alta visibilidad
+- "Texto grande" - Modo de texto aumentado
+- "requerido" - Indicador de campo obligatorio
+- "Página anterior" - Navegación de tabla
+- "Página siguiente" - Navegación de tabla
+
+## Credenciales de prueba
+- Email: admin@uc.cl
+- Contraseña: admin123

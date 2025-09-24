@@ -1,0 +1,1 @@
+export {}; // This file is no longer used - Router handles routing
