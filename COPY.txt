@@ -81,6 +81,6 @@
 - "Página anterior" - Navegación de tabla
 - "Página siguiente" - Navegación de tabla
 
-## Credenciales de prueba
+## Credenciales de prueba (inicio de sesión admin)
 - Email: admin@uc.cl
 - Contraseña: admin123
