@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,8 +6,10 @@ import { Save, ArrowRight, ArrowLeft, Stethoscope, User, FileText, CheckCircle }
 import { Stepper } from '../components/Stepper.jsx';
 import { FormField } from '../components/FormField.jsx';
 import { Chip } from '../components/Chip.jsx';
+import { FileUpload } from '../components/FileUpload.jsx';
 import { PATIENT_FIELDS, CLINICAL_FIELDS, DIAGNOSIS_FIELD } from '../lib/fields.js';
 import { patientSchema, clinicalSchema, diagnosisSchema } from '../lib/zod-schemas.js';
+import { apiClient } from '../lib/apiClient.js';
 
 const STEPS = [
   {
@@ -43,6 +45,7 @@ const STEPS = [
 export function RegistroNuevo() {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({});
+  const [patientId, setPatientId] = useState(null);
   const [diagnosisOptions] = useState([
     { code: 'I10', description: 'Hipertensión arterial primaria' },
     { code: 'E11', description: 'Diabetes mellitus tipo 2' },
@@ -51,17 +54,24 @@ export function RegistroNuevo() {
   ]);
   const [selectedExams, setSelectedExams] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const currentStepData = STEPS[currentStep - 1];
-  
+  const resolver = currentStepData.schema ? zodResolver(currentStepData.schema) : undefined;
+
   const form = useForm({
-    resolver: currentStepData.schema ? zodResolver(currentStepData.schema) : undefined,
+    resolver,
     defaultValues: formData[currentStepData.id] || {},
   });
 
   const { handleSubmit, formState: { errors }, watch, setValue } = form;
+
+  useEffect(() => {
+    form.reset(formData[currentStepData.id] || {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
 
   const examOptions = ['Hemograma', 'Glicemia', 'Creatinina', 'Electrolitos', 'ECG', 'Ecocardiograma'];
   const imageOptions = ['Radiografía tórax', 'TAC tórax', 'Resonancia magnética', 'Ecotomografía'];
@@ -78,8 +88,11 @@ export function RegistroNuevo() {
   };
 
   const goToStep = (step) => {
-    if (step <= currentStep) {
+    if (step === 1 || patientId || step <= currentStep) {
       setCurrentStep(step);
+    } else {
+      // Evitar avanzar si no existe paciente aún
+      console.warn('Primero debe guardar el paciente');
     }
   };
 
@@ -92,10 +105,9 @@ export function RegistroNuevo() {
   const saveDraft = async () => {
     setLoading(true);
     try {
-      // Mock save draft
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // In real app: await apiClient.saveDraft({ ...formData, [currentStepData.id]: form.getValues() });
-      console.log('Borrador guardado', { ...formData, [currentStepData.id]: form.getValues() });
+      const payload = { ...formData, [currentStepData.id]: form.getValues() };
+      await apiClient.saveDraft(payload);
+      console.log('Borrador guardado', payload);
     } catch (error) {
       console.error('Error guardando borrador:', error);
     } finally {
@@ -103,24 +115,102 @@ export function RegistroNuevo() {
     }
   };
 
+  const savePaciente = async (data) => {
+    // data corresponde a los valores del paso actual validados
+    console.log('🔍 Datos recibidos del formulario:', data);
+    setLoading(true);
+    try {
+      // Mapear campos del frontend a los nombres que espera el backend
+      const payload = {
+        rut: data.rut,
+        nombre: data.firstName,
+        apellido: data.lastName,
+        fecha_nacimiento: data.birthDate,
+        sexo: data.gender,
+        telefono: data.phone,
+        email: data.email,
+        aseguradora: data.healthInsurance
+      };
+
+      console.log('📤 Payload a enviar al backend:', payload);
+
+      const created = await apiClient.createPaciente(payload);
+      console.log('✅ Respuesta del backend:', created);
+
+      const newId = created?.id ?? created?.id_paciente;
+      setPatientId(newId || null);
+      setFormData(prev => ({ ...prev, patient: data }));
+
+      console.log('🎉 Paciente guardado exitosamente con ID:', newId);
+
+      // avanzar a diagnóstico
+      setCurrentStep(2);
+    } catch (error) {
+      console.error('❌ Error guardando paciente:', error);
+      console.error('❌ Detalles del error:', error.message);
+      console.error('❌ Stack trace:', error.stack);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onSavePacienteError = (errs) => {
+    // Opcional: podrías hacer scroll al primer error o mostrar un toast
+    console.warn('❌ Errores de validación:', errs);
+    console.warn('❌ Datos del formulario actual:', form.getValues());
+  };
+
   const submitRegistration = async (data) => {
     setLoading(true);
     try {
-      const finalData = {
-        ...formData,
-        clinical: {
-          ...data,
-          examinations: selectedExams,
-          images: selectedImages,
-        }
+      // Asegurar que exista paciente (si llega directo al final sin guardarlo)
+      let ensuredPatientId = patientId;
+      if (!ensuredPatientId) {
+        const patientData = formData.patient || {};
+        const payload = {
+          rut: patientData.rut,
+          nombre: patientData.firstName,
+          apellido: patientData.lastName,
+          fecha_nacimiento: patientData.birthDate,
+          sexo: patientData.gender,
+          telefono: patientData.phone,
+          email: patientData.email,
+          aseguradora: patientData.healthInsurance
+        };
+        const created = await apiClient.createPaciente(payload);
+        ensuredPatientId = created?.id ?? created?.id_paciente;
+        setPatientId(ensuredPatientId || null);
+      }
+
+      // Crear Episodio primero
+      const episodioPayload = {
+        id_paciente: ensuredPatientId,
+        centro: 'Hospital Test',
+        fecha_adm: new Date().toISOString(),
+        estado: 'activo'
       };
-      
-      // Mock submit
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      console.log('Registro enviado:', finalData);
-      
-      // Navigate to evaluation
-      navigate('/evaluacion/resultado/123');
+      const episodio = await apiClient.createEpisodio(episodioPayload);
+      const episodioId = episodio?.id ?? episodio?.id_episodio;
+
+      console.log('Episodio creado:', episodio);
+
+      // Crear Diagnóstico vinculado al episodio
+      const diagnosis = formData.diagnosis || {};
+      const diagnosticoPayload = {
+        id_episodio: episodioId,
+        diagnostico: diagnosis.description || diagnosis.code || 'Diagnóstico pendiente',
+        motivo_consulta: diagnosis.additionalNotes || '',
+        condicion_clinica: 'Condición clínica pendiente',
+        id_usuario: 1 // Usuario por defecto para testing
+      };
+      const diagnostico = await apiClient.createDiagnostico(diagnosticoPayload);
+
+      // (Opcional) Podrías enviar parámetros clínicos a otro endpoint si corresponde
+      // const clinicalPayload = { ...data, examinations: selectedExams, images: selectedImages, paciente_id: paciente?.id };
+
+      console.log('Diagnóstico creado:', diagnostico);
+
+      navigate(`/evaluacion/resultado/${ensuredPatientId ?? '123'}`);
     } catch (error) {
       console.error('Error enviando registro:', error);
     } finally {
@@ -232,7 +322,7 @@ export function RegistroNuevo() {
               </button>
             ))}
           </div>
-          
+
           {selectedExams.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedExams.map(exam => (
@@ -275,7 +365,7 @@ export function RegistroNuevo() {
               </button>
             ))}
           </div>
-          
+
           {selectedImages.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedImages.map(image => (
@@ -290,6 +380,18 @@ export function RegistroNuevo() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* File Upload Section */}
+      <div>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Documentos Adjuntos</h3>
+        <FileUpload
+          label="Subir documentos médicos (PDF)"
+          accept=".pdf"
+          multiple={true}
+          onFilesChange={setUploadedFiles}
+          className="mb-6"
+        />
       </div>
     </div>
   );
@@ -322,15 +424,15 @@ export function RegistroNuevo() {
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Nombre completo</dt>
-                <dd className="text-sm text-gray-900">{patientData.firstName} {patientData.lastName}</dd>
+                <dd className="text-sm text-gray-900">{(patientData.firstName ?? patientData.nombre ?? '')} {(patientData.lastName ?? patientData.apellido ?? '')}</dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Fecha de nacimiento</dt>
-                <dd className="text-sm text-gray-900">{patientData.birthDate}</dd>
+                <dd className="text-sm text-gray-900">{patientData.birthDate ?? patientData.fecha_nacimiento ?? ''}</dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Previsión</dt>
-                <dd className="text-sm text-gray-900">{patientData.healthInsurance}</dd>
+                <dd className="text-sm text-gray-900">{patientData.healthInsurance ?? patientData.prevision ?? patientData.aseguradora ?? ''}</dd>
               </div>
             </dl>
           </div>
@@ -393,6 +495,21 @@ export function RegistroNuevo() {
                     {selectedImages.length > 0 ? selectedImages.join(', ') : 'Ninguna seleccionada'}
                   </dd>
                 </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Documentos adjuntos</dt>
+                  <dd className="text-sm text-gray-900">
+                    {uploadedFiles.length > 0 ? (
+                      <div className="space-y-1">
+                        {uploadedFiles.map((file, index) => (
+                          <div key={index} className="flex items-center space-x-2">
+                            <span className="text-blue-600">📄 {file.name}</span>
+                            {file.uploaded && <span className="text-green-600 text-xs">✓ Subido</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : 'Ningún documento adjunto'}
+                  </dd>
+                </div>
               </dl>
             </div>
           </div>
@@ -426,7 +543,11 @@ export function RegistroNuevo() {
         onStepClick={goToStep}
       />
 
-      <form onSubmit={handleSubmit(currentStep === 4 ? submitRegistration : onStepSubmit)} className="space-y-8">
+      <form
+        key={currentStep}
+        onSubmit={handleSubmit(currentStep === 4 ? submitRegistration : onStepSubmit)}
+        className="space-y-8"
+      >
         <div className="card">
           <div className="flex items-center gap-3 mb-6">
             {React.createElement(currentStepData.icon, { className: 'w-6 h-6 text-primary' })}
@@ -452,7 +573,7 @@ export function RegistroNuevo() {
                 Anterior
               </button>
             )}
-            
+
             <button
               type="button"
               onClick={saveDraft}
@@ -464,20 +585,31 @@ export function RegistroNuevo() {
             </button>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn btn-primary"
-          >
-            {currentStep === 4 ? (
-              loading ? 'Enviando...' : 'Evaluar con IA'
-            ) : (
-              <>
-                Siguiente
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </>
-            )}
-          </button>
+          {currentStep === 1 ? (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={handleSubmit(savePaciente, onSavePacienteError)}
+              className="btn btn-primary"
+            >
+              {loading ? 'Guardando...' : 'Guardar paciente'}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary"
+            >
+              {currentStep === 4 ? (
+                loading ? 'Enviando...' : 'Evaluar con IA'
+              ) : (
+                <>
+                  Siguiente
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              )}
+            </button>
+          )}
         </div>
       </form>
     </div>

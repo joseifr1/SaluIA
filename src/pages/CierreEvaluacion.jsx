@@ -41,11 +41,11 @@ export function CierreEvaluacion() {
 
   const onSubmit = async (data) => {
     setLoading(true);
-    
+
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       const finalData = {
         evaluationId: id,
         decision: data.decision,
@@ -54,9 +54,9 @@ export function CierreEvaluacion() {
         notifyEmail: data.notifyEmail,
         timestamp: new Date().toISOString(),
       };
-      
+
       console.log('Finalizando caso:', finalData);
-      
+
       // Navigate back to records
       navigate('/registros', {
         state: {
@@ -120,7 +120,7 @@ export function CierreEvaluacion() {
           <p className="text-gray-600 mb-4">
             Seleccione su decisión final sobre la activación de la Ley para este caso:
           </p>
-          
+
           <div className="space-y-3">
             <label className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
               <input
@@ -139,7 +139,7 @@ export function CierreEvaluacion() {
                 </div>
               </div>
             </label>
-            
+
             <label className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
               <input
                 {...register('decision')}
@@ -167,17 +167,17 @@ export function CierreEvaluacion() {
             Observaciones Clínicas
           </h2>
           <p className="text-gray-600 mb-4">
-            {isRejecting 
+            {isRejecting
               ? 'Documente las razones por las cuales rechaza la activación de la Ley:'
               : 'Agregue observaciones adicionales sobre este caso (opcional):'
             }
           </p>
-          
+
           <Textarea
             {...register('observations', {
               required: isRejecting ? 'Las observaciones son requeridas al rechazar un caso' : false,
             })}
-            placeholder={isRejecting 
+            placeholder={isRejecting
               ? 'Explique las razones médicas para rechazar la activación de la Ley...'
               : 'Observaciones adicionales sobre el caso...'
             }
@@ -195,7 +195,7 @@ export function CierreEvaluacion() {
           <p className="text-gray-600 mb-4">
             Su feedback ayuda a mejorar la precisión del sistema de evaluación automática:
           </p>
-          
+
           <Textarea
             {...register('feedback')}
             placeholder="¿Qué tan precisa fue la evaluación de la IA? ¿Hay aspectos que podrían mejorarse?..."
@@ -209,7 +209,7 @@ export function CierreEvaluacion() {
             <Mail className="w-5 h-5" />
             Configuración de Notificaciones
           </h2>
-          
+
           <label className="flex items-start gap-3">
             <input
               {...register('notifyEmail')}
@@ -233,7 +233,7 @@ export function CierreEvaluacion() {
               <div>
                 <h3 className="font-medium text-yellow-800">Confirmación Requerida</h3>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Está rechazando la activación de la Ley para este caso. Asegúrese de que las observaciones 
+                  Está rechazando la activación de la Ley para este caso. Asegúrese de que las observaciones
                   documenten claramente las razones médicas para esta decisión.
                 </p>
               </div>
@@ -251,7 +251,7 @@ export function CierreEvaluacion() {
           >
             Cancelar
           </button>
-          
+
           <button
             type="submit"
             disabled={loading}
