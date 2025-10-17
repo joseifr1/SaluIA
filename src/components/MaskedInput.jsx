@@ -30,15 +30,23 @@ export function MaskedInput({
 
   function formatValue(val, maskPattern, placeholder) {
     if (!val) return '';
-    let cleanValue = sanitizeDigits(val);
 
-    // For phone display, remove leading 9 if it exists for display purposes
-    if (normalizePhone && cleanValue.length >= 1 && cleanValue[0] === '9') {
-      cleanValue = cleanValue.slice(1);
+    let cleanValue;
+    if (normalizePhone && val.startsWith('+56')) {
+      // Extract digits after +56
+      cleanValue = val.substring(3);
+    } else {
+      cleanValue = sanitizeDigits(val);
     }
 
-    const maxLen = countMaskSlots(maskPattern);
-    if (maxLen) cleanValue = cleanValue.slice(0, maxLen);
+    // For phone numbers, limit to exactly 9 digits
+    if (normalizePhone) {
+      cleanValue = cleanValue.slice(0, 9);
+    } else {
+      const maxLen = countMaskSlots(maskPattern);
+      if (maxLen) cleanValue = cleanValue.slice(0, maxLen);
+    }
+
     let formatted = '';
     let valueIndex = 0;
 
@@ -58,14 +66,24 @@ export function MaskedInput({
     const inputValue = e.target.value;
     let digits = sanitizeDigits(inputValue);
     const maxLen = countMaskSlots(mask);
-    if (maxLen) digits = digits.slice(0, maxLen);
-    const formatted = formatValue(digits, mask, maskChar);
 
+    // For phone numbers, limit to exactly 9 digits
+    if (normalizePhone) {
+      digits = digits.slice(0, 9);
+    } else if (maxLen) {
+      digits = digits.slice(0, maxLen);
+    }
+
+    const formatted = formatValue(digits, mask, maskChar);
     setDisplayValue(formatted);
 
-    // For phone numbers, store the digits as entered (without auto-adding 9)
-    // The mask will handle the display formatting
-    onChange(digits);
+    // For phone numbers, store the complete formatted value with +56
+    if (normalizePhone) {
+      const phoneValue = '+56' + digits;
+      onChange(phoneValue);
+    } else {
+      onChange(digits);
+    }
   };
 
   return (

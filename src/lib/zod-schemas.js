@@ -22,8 +22,14 @@ const isValidRUT = (rut) => {
   return dv === calculatedDV;
 };
 
-// Chilean phone validation
-const chileanPhoneRegex = /^(\+56\s?)?([2-9]\d{8}|[6-9]\d{7})$/;
+// Chilean phone validation - must start with +56 followed by 9 digits
+const isValidChileanPhone = (phone) => {
+  if (!phone || phone.trim() === '') return true; // Optional field
+
+  // Must start with +56 followed by exactly 9 digits
+  const phoneRegex = /^\+56\d{9}$/;
+  return phoneRegex.test(phone);
+};
 
 // Base validations
 export const rutSchema = z.string()
@@ -63,7 +69,7 @@ export const healthInsuranceSchema = z.enum(['fonasa', 'isapre', 'particular', '
 
 export const phoneSchema = z.string()
   .optional()
-  .refine((phone) => !phone || chileanPhoneRegex.test(phone), 'Teléfono inválido');
+  .refine((phone) => isValidChileanPhone(phone), 'Teléfono inválido. Debe empezar con +56 seguido de 9 dígitos');
 
 export const emailSchema = z.string()
   .optional()
