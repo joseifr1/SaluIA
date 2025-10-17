@@ -20,8 +20,18 @@ class AuthService {
   async login(credentials) {
     try {
       const response = await apiClient.login(credentials);
-      this.currentUser = response.user;
-      apiClient.setToken(response.token);
+      const token = response.access_token || response.token;
+      const user = response.user;
+      this.currentUser = {
+        id: user.id,
+        email: user.email,
+        firstName: user.nombre,
+        lastName: user.apellido,
+        role: user.is_admin ? 'admin' : (user.rol || 'doctor'),
+        avatar: null,
+        is_admin: !!user.is_admin,
+      };
+      apiClient.setToken(token);
       this.notify();
       return response;
     } catch (error) {
@@ -54,9 +64,17 @@ class AuthService {
 
     try {
       const user = await apiClient.getCurrentUser();
-      this.currentUser = user;
+      this.currentUser = {
+        id: user.id,
+        email: user.email,
+        firstName: user.nombre,
+        lastName: user.apellido,
+        role: user.is_admin ? 'admin' : (user.rol || 'doctor'),
+        avatar: null,
+        is_admin: !!user.is_admin,
+      };
       this.notify();
-      return user;
+      return this.currentUser;
     } catch (error) {
       // Token might be expired
       localStorage.removeItem('auth_token');

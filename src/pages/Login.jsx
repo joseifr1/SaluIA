@@ -35,8 +35,7 @@ export function Login() {
     setError('');
 
     try {
-      // Using mock login for development
-      await authService.mockLogin(data);
+      await authService.login({ email: data.email, password: data.password });
       navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || 'Error al iniciar sesión');
