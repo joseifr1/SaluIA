@@ -61,6 +61,7 @@ class ApiClient {
 
   // Authentication
   async login(credentials) {
+    // Backend expects /api/auth/login and returns { access_token, user }
     return this.request('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
@@ -68,7 +69,9 @@ class ApiClient {
   }
 
   async logout() {
-    return this.request('/auth/logout', { method: 'POST' });
+    // No explicit logout endpoint in backend; clear token client-side
+    this.setToken(null);
+    return Promise.resolve({});
   }
 
   async getCurrentUser() {
