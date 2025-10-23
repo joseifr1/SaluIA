@@ -55,7 +55,12 @@ class ApiClient {
         throw error;
       }
       
-      throw new ApiError(500, 'Error de conexión');
+      // Mejorar mensaje de error de conexión
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        throw new ApiError(500, 'No se puede conectar al servidor. Verifique que el backend esté ejecutándose en http://localhost:8000');
+      }
+      
+      throw new ApiError(500, 'Error de conexión: ' + error.message);
     }
   }
 
@@ -95,6 +100,13 @@ class ApiClient {
     });
   }
 
+  async createPatient(data) {
+    return this.request('/pacientes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async updateRecord(id, data) {
     return this.request(`/records/${id}`, {
       method: 'PUT',
@@ -103,7 +115,7 @@ class ApiClient {
   }
 
   async saveDraft(data) {
-    return this.request('/records/draft', {
+    return this.request('/borradores', {
       method: 'POST',
       body: JSON.stringify(data),
     });

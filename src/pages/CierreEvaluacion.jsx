@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { CheckCircle, XCircle, MessageSquare, Mail, ArrowRight, AlertTriangle } from 'lucide-react';
-import { Textarea } from '../components/Textarea.jsx';
 
 export function CierreEvaluacion() {
   const { id } = useParams();
@@ -173,7 +172,7 @@ export function CierreEvaluacion() {
             }
           </p>
           
-          <Textarea
+          <textarea
             {...register('observations', {
               required: isRejecting ? 'Las observaciones son requeridas al rechazar un caso' : false,
             })}
@@ -182,10 +181,10 @@ export function CierreEvaluacion() {
               : 'Observaciones adicionales sobre el caso...'
             }
             rows={4}
-            error={errors.observations?.message}
+            className="input min-h-[100px] resize-y"
           />
           {errors.observations && (
-            <p className="mt-1 text-sm text-red-600">{errors.observations.message}</p>
+            <p className="text-sm text-red-600">{errors.observations.message}</p>
           )}
         </div>
 
@@ -196,10 +195,11 @@ export function CierreEvaluacion() {
             Su feedback ayuda a mejorar la precisión del sistema de evaluación automática:
           </p>
           
-          <Textarea
+          <textarea
             {...register('feedback')}
             placeholder="¿Qué tan precisa fue la evaluación de la IA? ¿Hay aspectos que podrían mejorarse?..."
             rows={3}
+            className="input min-h-[100px] resize-y"
           />
         </div>
 

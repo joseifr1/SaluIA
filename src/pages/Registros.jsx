@@ -4,8 +4,6 @@ import { Search, Filter, Download, Plus, Calendar, FileText, Eye } from 'lucide-
 import { Table } from '../components/Table.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { NoRecordsFound } from '../components/EmptyState.jsx';
-import { TextInput } from '../components/TextInput.jsx';
-import { Select } from '../components/Select.jsx';
 
 export function Registros() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,23 +182,29 @@ export function Registros() {
           <div className="flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <TextInput
+              <input
+                type="text"
                 placeholder="Buscar por paciente, episodio o diagnóstico..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="input pl-10"
                 data-search
               />
             </div>
           </div>
           
           <div className="sm:w-48">
-            <Select
-              options={statusOptions}
+            <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              placeholder="Filtrar por estado"
-            />
+              className="input"
+            >
+              {statusOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
           
           <button

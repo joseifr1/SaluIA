@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { Search, UserCheck, UserX, Mail, MoreVertical, Shield, Clock, CheckCircle } from 'lucide-react';
 import { Table } from '../components/Table.jsx';
 import { Badge } from '../components/Badge.jsx';
-import { TextInput } from '../components/TextInput.jsx';
-import { Select } from '../components/Select.jsx';
 
 export function AdminUsuarios() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -287,22 +285,28 @@ export function AdminUsuarios() {
           <div className="flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <TextInput
+              <input
+                type="text"
                 placeholder="Buscar por nombre, email o servicio..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="input pl-10"
               />
             </div>
           </div>
           
           <div className="sm:w-48">
-            <Select
-              options={statusOptions}
+            <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              placeholder="Filtrar por estado"
-            />
+              className="input"
+            >
+              {statusOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
