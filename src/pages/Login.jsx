@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Activity, AlertCircle, Loader2 } from 'lucide-react';
 import { loginSchema } from '../lib/zod-schemas.js';
 import { authService } from '../lib/auth.js';
-import { TextInput } from '../components/TextInput.jsx';
 import clsx from 'clsx';
 
 export function Login() {
@@ -84,13 +83,13 @@ export function Login() {
                 Correo electrónico
               </label>
               <div className="mt-1">
-                <TextInput
+                <input
                   {...register('email')}
                   type="email"
                   autoComplete="email"
                   placeholder="su.email@uc.cl"
-                  error={errors.email?.message}
                   disabled={loading}
+                  className="input"
                 />
               </div>
               {errors.email && (
@@ -103,14 +102,13 @@ export function Login() {
                 Contraseña
               </label>
               <div className="mt-1 relative">
-                <TextInput
+                <input
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  error={errors.password?.message}
                   disabled={loading}
-                  className="pr-12"
+                  className="input pr-12"
                 />
                 <button
                   type="button"
