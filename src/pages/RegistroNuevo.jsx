@@ -16,22 +16,15 @@ const STEPS = [
   },
   {
     id: 'diagnosis',
-    title: 'Diagnóstico',
-    description: 'Diagnóstico CIE-10 y descripción',
+    title: 'Diagnóstico Médico',
+    description: 'Motivo de consulta, anamnesis y diagnóstico',
     icon: Stethoscope,
     schema: diagnosisSchema,
   },
   {
-    id: 'clinical',
-    title: 'Parámetros Clínicos',
-    description: 'Signos vitales y exámenes',
-    icon: FileText,
-    schema: clinicalSchema,
-  },
-  {
-    id: 'review',
-    title: 'Revisión y Envío',
-    description: 'Confirmar información',
+    id: 'evaluation',
+    title: 'Evaluación IA',
+    description: 'Análisis automático del caso',
     icon: CheckCircle,
     schema: null,
   },
@@ -128,6 +121,142 @@ export function RegistroNuevo() {
     }
   };
 
+  const submitDiagnostico = async (data) => {
+    setLoading(true);
+    try {
+      // Obtener datos del episodio desde formData
+      const episodioData = formData.episodio || {};
+      
+      // Mapear datos para el endpoint de diagnóstico
+      const apiData = {
+        id_episodio: episodioData.id || Math.floor(Math.random() * 1000) + 1, // Usar ID del episodio
+        diagnostico: data.diagnostico || '',
+        motivo_consulta: data.motivo_consulta || '',
+        condicion_clinica: data.condicion_clinica || '',
+        anamnesis: data.anamnesis || '',
+        signos_vitales: data.signos_vitales || '',
+        examenes: data.examenes || '',
+        laboratorios: data.laboratorios || '',
+        imagenes: data.imagenes || '',
+        id_usuario: 1 // TODO: Obtener ID del usuario logueado
+      };
+      
+      console.log('Enviando datos del diagnóstico a la API:', apiData);
+      console.log('URL completa:', `${apiClient.baseURL}/diagnosticos`);
+      
+      // POST real al backend
+      const response = await apiClient.createDiagnostico(apiData);
+      console.log('Diagnóstico creado exitosamente:', response);
+      
+      // Procesar evaluación con IA
+      const iaData = {
+        diagnostico: data.diagnostico,
+        motivo_consulta: data.motivo_consulta,
+        condicion_clinica: data.condicion_clinica,
+        signos_vitales: data.signos_vitales || '',
+        anamnesis: data.anamnesis || '',
+        examenes_fisicos: data.examenes || '',
+        laboratorios: data.laboratorios || '',
+        imagenes: data.imagenes || ''
+      };
+      
+      console.log('Enviando datos a la IA:', iaData);
+      const iaResponse = await apiClient.procesarEvaluacionIA(iaData);
+      console.log('Evaluación IA procesada:', iaResponse);
+      
+      // Crear evaluación IA en la base de datos
+      const evaluacionData = {
+        id_episodio: episodioData.id,
+        id_diagnostico: response.id,
+        datos_ia: iaResponse.datos_ia
+      };
+      
+      console.log('Creando evaluación IA:', evaluacionData);
+      const evaluacionResponse = await apiClient.createEvaluacionIA(evaluacionData);
+      console.log('Evaluación IA creada:', evaluacionResponse);
+      
+      // Guardar datos incluyendo la evaluación IA
+      setFormData(prev => ({
+        ...prev,
+        diagnosis: data,
+        diagnosticoId: response.id,
+        evaluacionIA: evaluacionResponse.evaluacion
+      }));
+      
+      setCurrentStep(currentStep + 1);
+      
+      alert('Diagnóstico creado y evaluado con IA exitosamente');
+    } catch (error) {
+      console.error('Error creando diagnóstico:', error);
+      
+      // Si es error de conexión, usar datos mock
+      if (error.message.includes('No se puede conectar al servidor') || error.message.includes('Load failed')) {
+        console.log('Backend no disponible o endpoint incorrecto, usando datos mock');
+        console.log('Error específico:', error.message);
+        console.log('Verifique que el endpoint /diagnosticos esté disponible en http://127.0.0.1:8000');
+        
+        // Simular respuesta exitosa del diagnóstico
+        const mockDiagnosticoResponse = {
+          id: Math.floor(Math.random() * 1000) + 1,
+          message: 'Diagnóstico creado (modo demo)',
+        };
+        
+        console.log('Diagnóstico creado en modo demo:', mockDiagnosticoResponse);
+        
+        // Simular evaluación IA
+        const mockIAResponse = {
+          datos_ia: {
+            modelo: 'saluia-v1.0',
+            pertinencia_ia: true,
+            criterios: `Criterios evaluados para diagnóstico: ${data.diagnostico}`,
+            fuentes_utilizadas: 'Protocolos médicos estándar, guías clínicas actualizadas',
+            confianza: 0.85,
+            recomendaciones: [
+              'Seguimiento clínico recomendado',
+              'Considerar exámenes complementarios',
+              'Evaluar respuesta al tratamiento'
+            ],
+            riesgo: 'Bajo',
+            tiempo_estimado: '24-48 horas'
+          }
+        };
+        
+        console.log('Evaluación IA procesada en modo demo:', mockIAResponse);
+        
+        // Simular evaluación IA creada
+        const mockEvaluacionResponse = {
+          evaluacion: {
+            id_eval_ia: Math.floor(Math.random() * 1000) + 1,
+            modelo: 'saluia-v1.0',
+            pertinencia_ia: true,
+            confianza: 0.85,
+            criterios: mockIAResponse.datos_ia.criterios,
+            fuentes_utilizadas: mockIAResponse.datos_ia.fuentes_utilizadas,
+            fecha_evaluacion: new Date().toISOString()
+          }
+        };
+        
+        console.log('Evaluación IA creada en modo demo:', mockEvaluacionResponse);
+        
+        // Guardar datos incluyendo la evaluación IA
+        setFormData(prev => ({
+          ...prev,
+          diagnosis: data,
+          diagnosticoId: mockDiagnosticoResponse.id,
+          evaluacionIA: mockEvaluacionResponse.evaluacion
+        }));
+        
+        setCurrentStep(currentStep + 1);
+        
+        alert('Diagnóstico creado y evaluado con IA exitosamente (modo demo - verifique endpoints /diagnosticos, /evaluacion y /evaluacion-ia en http://127.0.0.1:8000)');
+      } else {
+        alert('Error al crear diagnóstico: ' + error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submitPatientData = async (data) => {
     setLoading(true);
     try {
@@ -150,15 +279,28 @@ export function RegistroNuevo() {
       const response = await apiClient.createPatient(apiData);
       console.log('Paciente creado exitosamente:', response);
       
-      // Guardar datos y avanzar al siguiente paso
+      // Crear episodio para el paciente
+      const episodioData = {
+        id_paciente: response.id || Math.floor(Math.random() * 1000) + 1,
+        centro: 'UC Christus',
+        fecha_adm: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
+        estado: 'Pendiente'
+      };
+      
+      console.log('Creando episodio:', episodioData);
+      const episodioResponse = await apiClient.createEpisodio(episodioData);
+      console.log('Episodio creado exitosamente:', episodioResponse);
+      
+      // Guardar datos incluyendo el ID del episodio
       setFormData(prev => ({
         ...prev,
-        patient: data,
+        patient: { ...data, id: response.id },
+        episodio: { id: episodioResponse.id }
       }));
       
       setCurrentStep(currentStep + 1);
       
-      alert('Paciente creado exitosamente');
+      alert('Paciente y episodio creados exitosamente');
     } catch (error) {
       console.error('Error creando paciente:', error);
       
@@ -168,24 +310,33 @@ export function RegistroNuevo() {
         console.log('Error específico:', error.message);
         console.log('Verifique que el endpoint /pacientes esté disponible en http://127.0.0.1:8000');
         
-        // Simular respuesta exitosa
-        const mockResponse = {
+        // Simular respuesta exitosa del paciente
+        const mockPatientResponse = {
           id: Math.floor(Math.random() * 1000) + 1,
           message: 'Paciente creado (modo demo)',
           ...apiData
         };
         
-        console.log('Paciente creado en modo demo:', mockResponse);
+        console.log('Paciente creado en modo demo:', mockPatientResponse);
         
-        // Guardar datos y avanzar al siguiente paso
+        // Simular creación de episodio
+        const mockEpisodioResponse = {
+          id: Math.floor(Math.random() * 1000) + 1,
+          message: 'Episodio creado (modo demo)',
+        };
+        
+        console.log('Episodio creado en modo demo:', mockEpisodioResponse);
+        
+        // Guardar datos incluyendo el ID del episodio
         setFormData(prev => ({
           ...prev,
-          patient: data,
+          patient: { ...data, id: mockPatientResponse.id },
+          episodio: { id: mockEpisodioResponse.id }
         }));
         
         setCurrentStep(currentStep + 1);
         
-        alert('Paciente creado exitosamente (modo demo - verifique endpoint /pacientes en http://127.0.0.1:8000)');
+        alert('Paciente y episodio creados exitosamente (modo demo - verifique endpoints /pacientes y /episodios en http://127.0.0.1:8000)');
       } else {
         alert('Error al crear paciente: ' + error.message);
       }
@@ -368,47 +519,363 @@ export function RegistroNuevo() {
 
   const renderDiagnosisStep = () => (
     <div className="space-y-6">
+      {/* Motivo de Consulta */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Diagnóstico CIE-10 *
+          Motivo de Consulta *
         </label>
-        <select
-          value={watch('code') || ''}
-          onChange={(e) => {
-            const selected = diagnosisOptions.find(d => d.code === e.target.value);
-            if (selected) {
-              setValue('code', selected.code);
-              setValue('description', selected.description);
-            }
-          }}
-          className="input"
-        >
-          <option value="">Seleccionar diagnóstico...</option>
-          {diagnosisOptions.map(diagnosis => (
-            <option key={diagnosis.code} value={diagnosis.code}>
-              {diagnosis.code} - {diagnosis.description}
-            </option>
-          ))}
-        </select>
-        {errors.code && (
-          <p className="mt-1 text-sm text-red-600">{errors.code.message}</p>
+        <textarea
+          value={watch('motivo_consulta') || ''}
+          onChange={(e) => setValue('motivo_consulta', e.target.value)}
+          placeholder="Describa el motivo de la consulta..."
+          className="input min-h-[80px] resize-y"
+          rows={3}
+        />
+        {errors.motivo_consulta && (
+          <p className="mt-1 text-sm text-red-600">{errors.motivo_consulta.message}</p>
         )}
       </div>
 
+      {/* Condición Clínica */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Descripción adicional
+          Condición Clínica *
         </label>
         <textarea
-          value={watch('additionalNotes') || ''}
-          onChange={(e) => setValue('additionalNotes', e.target.value)}
-          placeholder="Información adicional sobre el diagnóstico..."
+          value={watch('condicion_clinica') || ''}
+          onChange={(e) => setValue('condicion_clinica', e.target.value)}
+          placeholder="Describa la condición clínica actual..."
+          className="input min-h-[80px] resize-y"
+          rows={3}
+        />
+        {errors.condicion_clinica && (
+          <p className="mt-1 text-sm text-red-600">{errors.condicion_clinica.message}</p>
+        )}
+      </div>
+
+      {/* Anamnesis */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Anamnesis *
+        </label>
+        <textarea
+          value={watch('anamnesis') || ''}
+          onChange={(e) => setValue('anamnesis', e.target.value)}
+          placeholder="Historia clínica del paciente..."
           className="input min-h-[100px] resize-y"
           rows={4}
         />
+        {errors.anamnesis && (
+          <p className="mt-1 text-sm text-red-600">{errors.anamnesis.message}</p>
+        )}
+      </div>
+
+      {/* Signos Vitales */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Signos Vitales
+        </label>
+        <textarea
+          value={watch('signos_vitales') || ''}
+          onChange={(e) => setValue('signos_vitales', e.target.value)}
+          placeholder="Presión arterial, frecuencia cardíaca, temperatura, etc..."
+          className="input min-h-[80px] resize-y"
+          rows={3}
+        />
+      </div>
+
+      {/* Exámenes */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Exámenes
+        </label>
+        <textarea
+          value={watch('examenes') || ''}
+          onChange={(e) => setValue('examenes', e.target.value)}
+          placeholder="Exámenes físicos realizados..."
+          className="input min-h-[80px] resize-y"
+          rows={3}
+        />
+      </div>
+
+      {/* Laboratorios */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Laboratorios
+        </label>
+        <textarea
+          value={watch('laboratorios') || ''}
+          onChange={(e) => setValue('laboratorios', e.target.value)}
+          placeholder="Resultados de laboratorio..."
+          className="input min-h-[80px] resize-y"
+          rows={3}
+        />
+      </div>
+
+      {/* Imágenes */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Imágenes
+        </label>
+        <textarea
+          value={watch('imagenes') || ''}
+          onChange={(e) => setValue('imagenes', e.target.value)}
+          placeholder="Radiografías, ecografías, tomografías, etc..."
+          className="input min-h-[80px] resize-y"
+          rows={3}
+        />
+      </div>
+
+      {/* Diagnóstico */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Diagnóstico *
+        </label>
+        <textarea
+          value={watch('diagnostico') || ''}
+          onChange={(e) => setValue('diagnostico', e.target.value)}
+          placeholder="Diagnóstico final..."
+          className="input min-h-[100px] resize-y"
+          rows={4}
+        />
+        {errors.diagnostico && (
+          <p className="mt-1 text-sm text-red-600">{errors.diagnostico.message}</p>
+        )}
       </div>
     </div>
   );
+
+  const submitLeyUrgencia = async (decision) => {
+    setLoading(true);
+    try {
+      const evaluacionData = {
+        id_episodio: formData.episodio?.id,
+        id_eval_ia: formData.evaluacionIA?.id_eval_ia,
+        id_medico: 1, // TODO: Obtener ID del médico logueado
+        pertinencia_medico: true, // Boolean: true/false
+        observaciones: `Decisión médica: ${decision}`,
+        estado_aseguradora: 'Pendiente',
+        sugerencia_ia: formData.evaluacionIA?.pertinencia_ia ? 'Activar' : 'No activar'
+      };
+      
+      console.log('formData completo:', formData);
+      console.log('formData.episodio:', formData.episodio);
+      console.log('formData.evaluacionIA:', formData.evaluacionIA);
+      
+      console.log('Enviando decisión de Ley de Urgencia:', evaluacionData);
+      console.log('URL completa:', `${apiClient.baseURL}/evaluacion-ley-urgencia`);
+      
+      const response = await apiClient.createEvaluacionLeyUrgencia(evaluacionData);
+      console.log('Evaluación Ley de Urgencia creada:', response);
+      
+      alert(`Decisión registrada exitosamente: ${decision}`);
+      navigate('/registros');
+      
+    } catch (error) {
+      console.error('Error registrando decisión:', error);
+      console.error('Error completo:', error);
+      
+      // Si es error de conexión, usar datos mock
+      if (error.message.includes('No se puede conectar al servidor') || error.message.includes('Load failed')) {
+        console.log('Backend no disponible, usando datos mock');
+        const mockResponse = {
+          id: Math.floor(Math.random() * 1000) + 1,
+          message: 'Decisión registrada (modo demo)',
+        };
+        
+        console.log('Decisión registrada en modo demo:', mockResponse);
+        alert(`Decisión registrada exitosamente (modo demo): ${decision}`);
+        navigate('/registros');
+      } else {
+        console.error('Error específico:', error.message);
+        console.error('Error status:', error.status);
+        alert(`Error al registrar decisión: ${error.message}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderEvaluationStep = () => {
+    const evaluacionIA = formData.evaluacionIA;
+    const diagnosis = formData.diagnosis;
+    
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-6">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            Evaluación con Inteligencia Artificial
+          </h3>
+          <p className="text-gray-600 mb-6">
+            La IA ha analizado el caso médico y proporcionado su evaluación
+          </p>
+        </div>
+
+        {/* Información del Diagnóstico */}
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+            <Stethoscope className="w-5 h-5 mr-2 text-blue-600" />
+            Diagnóstico Analizado
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-medium text-gray-700">Paciente:</span>
+              <span className="ml-2 text-gray-600">
+                {formData.patient?.firstName} {formData.patient?.lastName}
+              </span>
+            </div>
+            <div>
+              <span className="font-medium text-gray-700">RUT:</span>
+              <span className="ml-2 text-gray-600">{formData.patient?.rut}</span>
+            </div>
+            <div className="md:col-span-2">
+              <span className="font-medium text-gray-700">Motivo de Consulta:</span>
+              <p className="ml-2 text-gray-600 mt-1">{diagnosis?.motivo_consulta}</p>
+            </div>
+            <div className="md:col-span-2">
+              <span className="font-medium text-gray-700">Diagnóstico:</span>
+              <p className="ml-2 text-gray-600 mt-1">{diagnosis?.diagnostico}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Resultados de la IA */}
+        {evaluacionIA && (
+          <div className="space-y-4">
+            {/* Estado de la Evaluación */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-blue-900">Estado de la Evaluación</h4>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  evaluacionIA.pertinencia_ia 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {evaluacionIA.pertinencia_ia ? 'Pertinente' : 'No Pertinente'}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-blue-800">Modelo:</span>
+                  <span className="ml-2 text-blue-700">{evaluacionIA.modelo}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-blue-800">Confianza:</span>
+                  <span className="ml-2 text-blue-700">{(evaluacionIA.confianza * 100).toFixed(1)}%</span>
+                </div>
+                <div>
+                  <span className="font-medium text-blue-800">Fecha:</span>
+                  <span className="ml-2 text-blue-700">
+                    {new Date(evaluacionIA.fecha_evaluacion).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Criterios de Evaluación */}
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-900 mb-3">Criterios de Evaluación</h4>
+              <p className="text-gray-700 text-sm leading-relaxed">
+                {evaluacionIA.criterios}
+              </p>
+            </div>
+
+            {/* Fuentes Utilizadas */}
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-900 mb-3">Fuentes Utilizadas</h4>
+              <p className="text-gray-700 text-sm leading-relaxed">
+                {evaluacionIA.fuentes_utilizadas}
+              </p>
+            </div>
+
+            {/* Recomendaciones */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h4 className="font-semibold text-green-900 mb-3">Recomendaciones de la IA</h4>
+              <ul className="space-y-2">
+                {evaluacionIA.recomendaciones?.map((recomendacion, index) => (
+                  <li key={index} className="flex items-start text-sm text-green-800">
+                    <span className="w-2 h-2 bg-green-600 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                    {recomendacion}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Información Adicional */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-semibold text-yellow-900 mb-2">Nivel de Riesgo</h4>
+                <span className="text-yellow-800 font-medium">{evaluacionIA.riesgo || 'Bajo'}</span>
+              </div>
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h4 className="font-semibold text-purple-900 mb-2">Tiempo Estimado</h4>
+                <span className="text-purple-800 font-medium">{evaluacionIA.tiempo_estimado || '24-48 horas'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Decisión de Ley de Urgencia */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+            ¿Activar Ley de Urgencia?
+          </h4>
+          <p className="text-gray-600 text-sm text-center mb-6">
+            Basándose en la evaluación de la IA, tome la decisión final sobre la activación de la Ley de Urgencia.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              type="button"
+              onClick={() => submitLeyUrgencia('SÍ - Activar Ley de Urgencia')}
+              disabled={loading}
+              className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              SÍ
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => submitLeyUrgencia('NO - No activar Ley de Urgencia')}
+              disabled={loading}
+              className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              NO
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => submitLeyUrgencia('PENDIENTE - Dejar pendiente la activación')}
+              disabled={loading}
+              className="bg-amber-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Dejar Pendiente
+            </button>
+          </div>
+        </div>
+
+        {/* Disclaimer */}
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-gray-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-gray-700">
+                <strong>Disclaimer:</strong> El médico es el único responsable de la decisión de activar o no la Ley de Urgencia. 
+                La evaluación de la IA es únicamente una herramienta de apoyo y no reemplaza el criterio médico profesional.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderClinicalStep = () => (
     <div className="space-y-8">
@@ -710,8 +1177,7 @@ export function RegistroNuevo() {
     switch (currentStep) {
       case 1: return renderPatientStep();
       case 2: return renderDiagnosisStep();
-      case 3: return renderClinicalStep();
-      case 4: return renderReviewStep();
+      case 3: return renderEvaluationStep();
       default: return null;
     }
   };
@@ -773,7 +1239,12 @@ export function RegistroNuevo() {
         </ol>
       </nav>
 
-      <form onSubmit={handleSubmit(currentStep === 4 ? submitRegistration : (currentStep === 1 ? submitPatientData : onStepSubmit))} className="space-y-8">
+      <form onSubmit={handleSubmit(
+        currentStep === 3 ? submitRegistration : 
+        currentStep === 1 ? submitPatientData : 
+        currentStep === 2 ? submitDiagnostico : 
+        onStepSubmit
+      )} className="space-y-8">
         <div className="card">
           <div className="flex items-center gap-3 mb-6">
             {React.createElement(currentStepData.icon, { className: 'w-6 h-6 text-primary' })}
