@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Activity, AlertCircle, Loader2 } from 'lucide-react';
 import { loginSchema } from '../lib/zod-schemas.js';
 import { authService } from '../lib/auth.js';
+import { TextInput } from '../components/TextInput.jsx';
 import clsx from 'clsx';
 
 export function Login() {
@@ -173,11 +174,12 @@ export function Login() {
             </div>
           </div>
 
-          {/* Development helper */}
-          <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs text-blue-800 font-medium mb-2">Credenciales de prueba:</p>
-            <p className="text-xs text-blue-700">Email: admin@uc.cl</p>
-            <p className="text-xs text-blue-700">Contraseña: admin123</p>
+          <div className="mt-4">
+            <div className="text-center">
+              <Link to="/signup" className="text-sm text-primary hover:text-primary/80 font-medium">
+                ¿No tienes cuenta? Crear una
+              </Link>
+            </div>
           </div>
         </div>
       </div>

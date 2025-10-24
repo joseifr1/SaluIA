@@ -125,3 +125,13 @@ export const loginSchema = z.object({
   password: z.string().min(6, 'Contraseña debe tener al menos 6 caracteres'),
   rememberDevice: z.boolean().optional(),
 });
+
+// User registration schema (frontend)
+export const userRegisterSchema = z.object({
+  firstName: firstNameSchema,
+  lastName: lastNameSchema,
+  email: z.string().email('Email inválido'),
+  role: z.string().min(1, 'Rol es requerido'),
+  // Password is required for signup
+  password: z.string().min(6, 'Contraseña debe tener al menos 6 caracteres'),
+});

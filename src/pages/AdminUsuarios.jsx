@@ -1,64 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, UserCheck, UserX, Mail, MoreVertical, Shield, Clock, CheckCircle } from 'lucide-react';
 import { Table } from '../components/Table.jsx';
 import { Badge } from '../components/Badge.jsx';
+import { TextInput } from '../components/TextInput.jsx';
+import { Select } from '../components/Select.jsx';
+import { apiClient } from '../lib/apiClient.js';
 
 export function AdminUsuarios() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
 
-  // Mock users data
-  const users = [
-    {
-      id: 1,
-      firstName: 'Juan',
-      lastName: 'Pérez González',
-      email: 'juan.perez@uc.cl',
-      role: 'doctor',
-      status: 'active',
-      department: 'Cardiología',
-      registrationDate: '2024-01-10',
-      lastLogin: '2024-01-15',
-      casesProcessed: 45,
-    },
-    {
-      id: 2,
-      firstName: 'María',
-      lastName: 'López Silva',
-      email: 'maria.lopez@uc.cl',
-      role: 'nurse',
-      status: 'pending',
-      department: 'Medicina Interna',
-      registrationDate: '2024-01-14',
-      lastLogin: null,
-      casesProcessed: 0,
-    },
-    {
-      id: 3,
-      firstName: 'Carlos',
-      lastName: 'Rivera Díaz',
-      email: 'carlos.rivera@uc.cl',
-      role: 'doctor',
-      status: 'active',
-      department: 'Endocrinología',
-      registrationDate: '2024-01-05',
-      lastLogin: '2024-01-14',
-      casesProcessed: 32,
-    },
-    {
-      id: 4,
-      firstName: 'Ana',
-      lastName: 'Morales Castro',
-      email: 'ana.morales@uc.cl',
-      role: 'doctor',
-      status: 'pending',
-      department: 'Neurología',
-      registrationDate: '2024-01-12',
-      lastLogin: null,
-      casesProcessed: 0,
-    },
-  ];
+  // Remote data
+  const [users, setUsers] = useState([]);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [activeUsersCount, setActiveUsersCount] = useState(0);
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const statusOptions = [
     { value: '', label: 'Todos los estados' },
@@ -147,20 +105,28 @@ export function AdminUsuarios() {
     return matchesSearch && matchesStatus;
   });
 
-  const pendingUsers = users.filter(user => user.status === 'pending');
-  const activeUsers = users.filter(user => user.status === 'active');
+  const pendingUsers = solicitudes; // list shown in Pending section comes from solicitudes endpoint
+  const activeUsers = users.filter(user => user.is_active || user.status === 'active');
 
   const handleApproveUser = async (userId) => {
-    console.log('Aprobando usuario:', userId);
-    // Mock API call
-    alert(`Usuario aprobado exitosamente`);
+    try {
+      await apiClient.request(`/solicitudes/${userId}/aceptar`, { method: 'POST' });
+      alert('Solicitud aceptada y usuario activado exitosamente');
+      await refreshData();
+    } catch (error) {
+      alert(error.message || 'Error aceptando la solicitud');
+    }
   };
 
   const handleRejectUser = async (userId) => {
-    const confirmed = confirm('¿Está seguro de que desea rechazar este usuario?');
-    if (confirmed) {
-      console.log('Rechazando usuario:', userId);
-      alert(`Usuario rechazado`);
+    const confirmed = confirm('¿Está seguro de que desea rechazar esta solicitud?');
+    if (!confirmed) return;
+    try {
+      await apiClient.request(`/solicitudes/${userId}/rechazar`, { method: 'POST' });
+      alert('Solicitud rechazada exitosamente');
+      await refreshData();
+    } catch (error) {
+      alert(error.message || 'Error rechazando la solicitud');
     }
   };
 
@@ -176,6 +142,50 @@ export function AdminUsuarios() {
     console.log('Reenviando invitación:', userId);
     alert(`Invitación reenviada exitosamente`);
   };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await apiClient.request('/usuarios');
+      // assume res is an array of users
+      setUsers(res || []);
+      setTotalUsers(Array.isArray(res) ? res.length : 0);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const fetchActiveUsers = async () => {
+    try {
+      const res = await apiClient.request('/usuarios/activos');
+      // assume res is array of active users
+      setActiveUsersCount(Array.isArray(res) ? res.length : (res && res.count) || 0);
+    } catch (error) {
+      console.error('Error fetching active users:', error);
+    }
+  };
+
+  const fetchSolicitudes = async () => {
+    try {
+      const res = await apiClient.request('/solicitudes');
+      setSolicitudes(Array.isArray(res) ? res : []);
+    } catch (error) {
+      if (error && error.status === 422) {
+        console.error('Solicitudes endpoint returned 422. Response:', error.message || error);
+      } else {
+        console.error('Error fetching solicitudes:', error);
+      }
+    }
+  };
+
+  const refreshData = async () => {
+    setLoading(true);
+    await Promise.all([fetchUsers(), fetchActiveUsers(), fetchSolicitudes()]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    refreshData();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -285,28 +295,22 @@ export function AdminUsuarios() {
           <div className="flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
+              <TextInput
                 placeholder="Buscar por nombre, email o servicio..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="input pl-10"
+                className="pl-10"
               />
             </div>
           </div>
           
           <div className="sm:w-48">
-            <select
+            <Select
+              options={statusOptions}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="input"
-            >
-              {statusOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              placeholder="Filtrar por estado"
+            />
           </div>
         </div>
       </div>
