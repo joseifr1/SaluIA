@@ -5,6 +5,7 @@ import { ProtectedRoute } from './ProtectedRoute.jsx';
 
 // Pages
 import { Login } from '../pages/Login.jsx';
+import SignUp from '../pages/SignUp.jsx';
 import { Home } from '../pages/Home.jsx';
 import { RegistroNuevo } from '../pages/RegistroNuevo.jsx';
 import { Registros } from '../pages/Registros.jsx';
@@ -18,6 +19,10 @@ const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    path: '/signup',
+    element: <SignUp />,
   },
   {
     path: '/',
