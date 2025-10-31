@@ -114,6 +114,41 @@ class ApiClient {
     });
   }
 
+  async createEpisodio(data) {
+    return this.request('/episodios', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createDiagnostico(data) {
+    return this.request('/diagnosticos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async procesarEvaluacionIA(data) {
+    return this.request('/evaluacion', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createEvaluacionIA(data) {
+    return this.request('/evaluacion-ia', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createEvaluacionLeyUrgencia(data) {
+    return this.request('/evaluacion-ley-urgencia', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async saveDraft(data) {
     return this.request('/borradores', {
       method: 'POST',

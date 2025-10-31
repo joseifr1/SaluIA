@@ -85,8 +85,14 @@ export const oxygenSaturationSchema = z.number()
   .refine((sat) => !sat || (sat >= 70 && sat <= 100), 'Saturación debe estar entre 70% y 100%');
 
 export const diagnosisSchema = z.object({
-  code: z.string().min(1, 'Código CIE-10 es requerido'),
-  description: z.string().min(1, 'Descripción del diagnóstico es requerida'),
+  motivo_consulta: z.string().min(1, 'Motivo de consulta es requerido'),
+  condicion_clinica: z.string().min(1, 'Condición clínica es requerida'),
+  anamnesis: z.string().min(1, 'Anamnesis es requerida'),
+  signos_vitales: z.string().optional(),
+  examenes: z.string().optional(),
+  laboratorios: z.string().optional(),
+  imagenes: z.string().optional(),
+  diagnostico: z.string().min(1, 'Diagnóstico es requerido'),
 });
 
 // Complete schemas for forms
