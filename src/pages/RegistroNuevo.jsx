@@ -56,6 +56,55 @@ export function RegistroNuevo() {
   const examOptions = ['Hemograma', 'Glicemia', 'Creatinina', 'Electrolitos', 'ECG', 'Ecocardiograma'];
   const imageOptions = ['Radiografía tórax', 'TAC tórax', 'Resonancia magnética', 'Ecotomografía'];
 
+  // Funciones para formatear fecha DD/MM/YYYY
+  const formatDateToDDMMYYYY = (dateString) => {
+    if (!dateString) return '';
+    // Si viene en formato YYYY-MM-DD (de input type="date")
+    if (dateString.includes('-')) {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    // Si ya viene en formato DD/MM/YYYY, devolverlo tal cual
+    return dateString;
+  };
+
+  const parseDateFromDDMMYYYY = (dateString) => {
+    if (!dateString) return '';
+    // Si ya está en formato YYYY-MM-DD, devolverlo
+    if (dateString.includes('-') && dateString.length === 10) {
+      return dateString;
+    }
+    // Parsear DD/MM/YYYY a YYYY-MM-DD para el backend
+    const parts = dateString.split('/');
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    return dateString;
+  };
+
+  const handleDateChange = (value) => {
+    // Remover todo excepto números
+    const numbers = value.replace(/\D/g, '');
+    
+    // Limitar a 8 dígitos (DDMMYYYY)
+    const limited = numbers.slice(0, 8);
+    
+    // Formatear como DD/MM/YYYY
+    let formatted = '';
+    if (limited.length > 0) {
+      formatted = limited.slice(0, 2);
+    }
+    if (limited.length > 2) {
+      formatted += '/' + limited.slice(2, 4);
+    }
+    if (limited.length > 4) {
+      formatted += '/' + limited.slice(4, 8);
+    }
+    
+    setValue('birthDate', formatted);
+  };
+
   const onStepSubmit = (data) => {
     setFormData(prev => ({
       ...prev,
@@ -86,11 +135,14 @@ export function RegistroNuevo() {
       
       // Si estamos en el paso de paciente, mapear a la estructura de la API
       if (currentStepData.id === 'patient') {
+        // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD para el backend
+        const fechaFormateada = parseDateFromDDMMYYYY(currentData.birthDate || '') || currentData.birthDate || '';
+        
         const apiData = {
           rut: currentData.rut || '',
           nombre: currentData.firstName || '',
           apellido: currentData.lastName || '',
-          fecha_nacimiento: currentData.birthDate || '',
+          fecha_nacimiento: fechaFormateada,
           sexo: currentData.gender || '',
           telefono: currentData.phone || '',
           email: currentData.email || '',
@@ -138,6 +190,7 @@ export function RegistroNuevo() {
         examenes: data.examenes || '',
         laboratorios: data.laboratorios || '',
         imagenes: data.imagenes || '',
+        triage: data.triage || '',
         id_usuario: 1 // TODO: Obtener ID del usuario logueado
       };
       
@@ -163,25 +216,44 @@ export function RegistroNuevo() {
       console.log('Enviando datos a la IA:', iaData);
       const iaResponse = await apiClient.procesarEvaluacionIA(iaData);
       console.log('Evaluación IA procesada:', iaResponse);
+      console.log('datos_ia:', iaResponse.datos_ia);
+      console.log('recomendaciones en datos_ia:', iaResponse.datos_ia?.recomendaciones);
       
       // Crear evaluación IA en la base de datos
       const evaluacionData = {
         id_episodio: episodioData.id,
         id_diagnostico: response.id,
-        datos_ia: iaResponse.datos_ia
+        datos_ia: iaResponse.datos_ia || iaResponse
       };
       
       console.log('Creando evaluación IA:', evaluacionData);
       const evaluacionResponse = await apiClient.createEvaluacionIA(evaluacionData);
       console.log('Evaluación IA creada:', evaluacionResponse);
       
-      // Guardar datos incluyendo la evaluación IA
+      // Extraer datos_ia: puede venir directamente en iaResponse o en iaResponse.datos_ia
+      const datosIA = iaResponse.datos_ia || iaResponse;
+      
+      // Guardar datos incluyendo la evaluación IA con todas las propiedades de datos_ia
+      // Priorizar datos_ia sobre evaluacion para evitar que se sobrescriban las recomendaciones
       setFormData(prev => ({
         ...prev,
         diagnosis: data,
         diagnosticoId: response.id,
-        evaluacionIA: evaluacionResponse.evaluacion
+        evaluacionIA: {
+          ...evaluacionResponse.evaluacion,
+          ...datosIA,
+          // Asegurar que las recomendaciones se preserven
+          recomendaciones: datosIA.recomendaciones || evaluacionResponse.evaluacion?.recomendaciones,
+          riesgo: datosIA.riesgo || evaluacionResponse.evaluacion?.riesgo,
+          tiempo_estimado: datosIA.tiempo_estimado || evaluacionResponse.evaluacion?.tiempo_estimado,
+        }
       }));
+      
+      console.log('Evaluación guardada en formData:', {
+        ...evaluacionResponse.evaluacion,
+        ...datosIA,
+        recomendaciones: datosIA.recomendaciones || evaluacionResponse.evaluacion?.recomendaciones,
+      });
       
       setCurrentStep(currentStep + 1);
       
@@ -238,12 +310,15 @@ export function RegistroNuevo() {
         
         console.log('Evaluación IA creada en modo demo:', mockEvaluacionResponse);
         
-        // Guardar datos incluyendo la evaluación IA
+        // Guardar datos incluyendo la evaluación IA con todas las propiedades de datos_ia
         setFormData(prev => ({
           ...prev,
           diagnosis: data,
           diagnosticoId: mockDiagnosticoResponse.id,
-          evaluacionIA: mockEvaluacionResponse.evaluacion
+          evaluacionIA: {
+            ...mockEvaluacionResponse.evaluacion,
+            ...mockIAResponse.datos_ia
+          }
         }));
         
         setCurrentStep(currentStep + 1);
@@ -260,12 +335,15 @@ export function RegistroNuevo() {
   const submitPatientData = async (data) => {
     setLoading(true);
     try {
+      // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD para el backend
+      const fechaFormateada = parseDateFromDDMMYYYY(data.birthDate || '') || data.birthDate || '';
+      
       // Mapear datos del formulario a la estructura que espera la API
       const apiData = {
         rut: data.rut || '',
         nombre: data.firstName || '',
         apellido: data.lastName || '',
-        fecha_nacimiento: data.birthDate || '',
+        fecha_nacimiento: fechaFormateada,
         sexo: data.gender || '',
         telefono: data.phone || '',
         email: data.email || '',
@@ -350,11 +428,14 @@ export function RegistroNuevo() {
     try {
       // Mapear datos del formulario a la estructura que espera la API
       const patientData = formData.patient || {};
+      // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD para el backend
+      const fechaFormateada = parseDateFromDDMMYYYY(patientData.birthDate || '') || patientData.birthDate || '';
+      
       const apiData = {
         rut: patientData.rut || '',
         nombre: patientData.firstName || '',
         apellido: patientData.lastName || '',
-        fecha_nacimiento: patientData.birthDate || '',
+        fecha_nacimiento: fechaFormateada,
         sexo: patientData.gender || '',
         telefono: patientData.phone || '',
         email: patientData.email || '',
@@ -435,10 +516,12 @@ export function RegistroNuevo() {
           </label>
           <input
             id="birthDate"
-            type="date"
-            value={watch('birthDate') || ''}
-            onChange={(e) => setValue('birthDate', e.target.value)}
+            type="text"
+            placeholder="DD/MM/YYYY"
+            value={formatDateToDDMMYYYY(watch('birthDate') || '')}
+            onChange={(e) => handleDateChange(e.target.value)}
             className="input"
+            maxLength={10}
           />
           {errors.birthDate && <p className="text-sm text-red-600">{errors.birthDate.message}</p>}
         </div>
@@ -518,17 +601,17 @@ export function RegistroNuevo() {
   );
 
   const renderDiagnosisStep = () => (
-    <div className="space-y-6">
+    <div className="grid grid-cols-3 gap-6">
       {/* Motivo de Consulta */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
           Motivo de Consulta *
         </label>
         <textarea
           value={watch('motivo_consulta') || ''}
           onChange={(e) => setValue('motivo_consulta', e.target.value)}
           placeholder="Describa el motivo de la consulta..."
-          className="input min-h-[80px] resize-y"
+          className="input min-h-[80px] resize-y w-full"
           rows={3}
         />
         {errors.motivo_consulta && (
@@ -538,14 +621,14 @@ export function RegistroNuevo() {
 
       {/* Condición Clínica */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
           Condición Clínica *
         </label>
         <textarea
           value={watch('condicion_clinica') || ''}
           onChange={(e) => setValue('condicion_clinica', e.target.value)}
           placeholder="Describa la condición clínica actual..."
-          className="input min-h-[80px] resize-y"
+          className="input min-h-[80px] resize-y w-full"
           rows={3}
         />
         {errors.condicion_clinica && (
@@ -555,15 +638,15 @@ export function RegistroNuevo() {
 
       {/* Anamnesis */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
           Anamnesis *
         </label>
         <textarea
           value={watch('anamnesis') || ''}
           onChange={(e) => setValue('anamnesis', e.target.value)}
           placeholder="Historia clínica del paciente..."
-          className="input min-h-[100px] resize-y"
-          rows={4}
+          className="input min-h-[80px] resize-y w-full"
+          rows={3}
         />
         {errors.anamnesis && (
           <p className="mt-1 text-sm text-red-600">{errors.anamnesis.message}</p>
@@ -572,75 +655,89 @@ export function RegistroNuevo() {
 
       {/* Signos Vitales */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
           Signos Vitales
         </label>
         <textarea
           value={watch('signos_vitales') || ''}
           onChange={(e) => setValue('signos_vitales', e.target.value)}
           placeholder="Presión arterial, frecuencia cardíaca, temperatura, etc..."
-          className="input min-h-[80px] resize-y"
+          className="input min-h-[80px] resize-y w-full"
           rows={3}
         />
       </div>
 
       {/* Exámenes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
           Exámenes
         </label>
         <textarea
           value={watch('examenes') || ''}
           onChange={(e) => setValue('examenes', e.target.value)}
           placeholder="Exámenes físicos realizados..."
-          className="input min-h-[80px] resize-y"
+          className="input min-h-[80px] resize-y w-full"
           rows={3}
         />
       </div>
 
       {/* Laboratorios */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
           Laboratorios
         </label>
         <textarea
           value={watch('laboratorios') || ''}
           onChange={(e) => setValue('laboratorios', e.target.value)}
           placeholder="Resultados de laboratorio..."
-          className="input min-h-[80px] resize-y"
+          className="input min-h-[80px] resize-y w-full"
           rows={3}
         />
       </div>
 
       {/* Imágenes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
           Imágenes
         </label>
         <textarea
           value={watch('imagenes') || ''}
           onChange={(e) => setValue('imagenes', e.target.value)}
           placeholder="Radiografías, ecografías, tomografías, etc..."
-          className="input min-h-[80px] resize-y"
+          className="input min-h-[80px] resize-y w-full"
           rows={3}
         />
       </div>
 
       {/* Diagnóstico */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
           Diagnóstico *
         </label>
         <textarea
           value={watch('diagnostico') || ''}
           onChange={(e) => setValue('diagnostico', e.target.value)}
           placeholder="Diagnóstico final..."
-          className="input min-h-[100px] resize-y"
-          rows={4}
+          className="input min-h-[80px] resize-y w-full"
+          rows={3}
         />
         {errors.diagnostico && (
           <p className="mt-1 text-sm text-red-600">{errors.diagnostico.message}</p>
         )}
+      </div>
+
+      {/* Triage */}
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">
+          Triage
+        </label>
+        <textarea
+          value={watch('triage') || ''}
+          onChange={(e) => setValue('triage', e.target.value)}
+          placeholder="Clasificación de triage..."
+          className="input min-h-[80px] resize-y w-full"
+          rows={3}
+        />
       </div>
     </div>
   );
@@ -700,43 +797,37 @@ export function RegistroNuevo() {
     const evaluacionIA = formData.evaluacionIA;
     const diagnosis = formData.diagnosis;
     
+    // Debug: ver qué contiene evaluacionIA
+    console.log('renderEvaluationStep - evaluacionIA:', evaluacionIA);
+    console.log('renderEvaluationStep - recomendaciones:', evaluacionIA?.recomendaciones);
+    
     return (
       <div className="space-y-6">
-        <div className="text-center py-6">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
-            Evaluación con Inteligencia Artificial
-          </h3>
-          <p className="text-gray-600 mb-6">
-            La IA ha analizado el caso médico y proporcionado su evaluación
-          </p>
-        </div>
-
         {/* Información del Diagnóstico */}
         <div className="bg-gray-50 rounded-lg p-6">
           <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
             <Stethoscope className="w-5 h-5 mr-2 text-blue-600" />
             Diagnóstico Analizado
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {/* Fila superior: Paciente y RUT */}
             <div>
-              <span className="font-medium text-gray-700">Paciente:</span>
+              <span className="font-bold text-gray-700">Paciente:</span>
               <span className="ml-2 text-gray-600">
                 {formData.patient?.firstName} {formData.patient?.lastName}
               </span>
             </div>
             <div>
-              <span className="font-medium text-gray-700">RUT:</span>
+              <span className="font-bold text-gray-700">RUT:</span>
               <span className="ml-2 text-gray-600">{formData.patient?.rut}</span>
             </div>
-            <div className="md:col-span-2">
-              <span className="font-medium text-gray-700">Motivo de Consulta:</span>
+            {/* Fila inferior: Motivo de Consulta y Diagnóstico */}
+            <div>
+              <span className="font-bold text-gray-700">Motivo de Consulta:</span>
               <p className="ml-2 text-gray-600 mt-1">{diagnosis?.motivo_consulta}</p>
             </div>
-            <div className="md:col-span-2">
-              <span className="font-medium text-gray-700">Diagnóstico:</span>
+            <div>
+              <span className="font-bold text-gray-700">Diagnóstico:</span>
               <p className="ml-2 text-gray-600 mt-1">{diagnosis?.diagnostico}</p>
             </div>
           </div>
@@ -775,43 +866,50 @@ export function RegistroNuevo() {
               </div>
             </div>
 
-            {/* Criterios de Evaluación */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 mb-3">Criterios de Evaluación</h4>
-              <p className="text-gray-700 text-sm leading-relaxed">
-                {evaluacionIA.criterios}
-              </p>
-            </div>
+            {/* Criterios de Evaluación y Fuentes Utilizadas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Criterios de Evaluación */}
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 mb-3">Criterios de Evaluación</h4>
+                <p className="text-gray-700 text-sm leading-relaxed">
+                  {evaluacionIA.criterios}
+                </p>
+              </div>
 
-            {/* Fuentes Utilizadas */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 mb-3">Fuentes Utilizadas</h4>
-              <p className="text-gray-700 text-sm leading-relaxed">
-                {evaluacionIA.fuentes_utilizadas}
-              </p>
+              {/* Fuentes Utilizadas */}
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 mb-3">Fuentes Utilizadas</h4>
+                <p className="text-gray-700 text-sm leading-relaxed">
+                  {evaluacionIA.fuentes_utilizadas}
+                </p>
+              </div>
             </div>
 
             {/* Recomendaciones */}
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h4 className="font-semibold text-green-900 mb-3">Recomendaciones de la IA</h4>
-              <ul className="space-y-2">
-                {evaluacionIA.recomendaciones?.map((recomendacion, index) => (
-                  <li key={index} className="flex items-start text-sm text-green-800">
-                    <span className="w-2 h-2 bg-green-600 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                    {recomendacion}
-                  </li>
-                ))}
-              </ul>
+              {evaluacionIA.recomendaciones && evaluacionIA.recomendaciones.length > 0 ? (
+                <ul className="space-y-2">
+                  {evaluacionIA.recomendaciones.map((recomendacion, index) => (
+                    <li key={index} className="flex items-start text-sm text-green-800">
+                      <span className="w-2 h-2 bg-green-600 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                      {recomendacion}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-green-700 italic">No hay recomendaciones disponibles</p>
+              )}
             </div>
 
             {/* Información Adicional */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="font-semibold text-yellow-900 mb-2">Nivel de Riesgo</h4>
+                <h4 className="font-semibold text-yellow-900 mb-2">Nivel de Riesgo Paciente</h4>
                 <span className="text-yellow-800 font-medium">{evaluacionIA.riesgo || 'Bajo'}</span>
               </div>
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h4 className="font-semibold text-purple-900 mb-2">Tiempo Estimado</h4>
+                <h4 className="font-semibold text-purple-900 mb-2">Tiempo Estimado de Atención</h4>
                 <span className="text-purple-800 font-medium">{evaluacionIA.tiempo_estimado || '24-48 horas'}</span>
               </div>
             </div>
@@ -821,7 +919,7 @@ export function RegistroNuevo() {
         {/* Decisión de Ley de Urgencia */}
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <h4 className="text-lg font-semibold text-gray-900 mb-4 text-center">
-            ¿Activar Ley de Urgencia?
+            ¿Aceptar recomendación de la IA?
           </h4>
           <p className="text-gray-600 text-sm text-center mb-6">
             Basándose en la evaluación de la IA, tome la decisión final sobre la activación de la Ley de Urgencia.
@@ -1246,13 +1344,15 @@ export function RegistroNuevo() {
         onStepSubmit
       )} className="space-y-8">
         <div className="card">
-          <div className="flex items-center gap-3 mb-6">
-            {React.createElement(currentStepData.icon, { className: 'w-6 h-6 text-primary' })}
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">{currentStepData.title}</h2>
-              <p className="text-gray-600">{currentStepData.description}</p>
+          {currentStep !== 3 && (
+            <div className="flex items-center gap-3 mb-6">
+              {React.createElement(currentStepData.icon, { className: 'w-6 h-6 text-primary' })}
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">{currentStepData.title}</h2>
+                <p className="text-gray-600">{currentStepData.description}</p>
+              </div>
             </div>
-          </div>
+          )}
 
           {renderCurrentStep()}
         </div>
