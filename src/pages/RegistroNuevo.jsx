@@ -42,6 +42,7 @@ export function RegistroNuevo() {
   const [selectedExams, setSelectedExams] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [observacionesMedico, setObservacionesMedico] = useState('');
   const navigate = useNavigate();
 
   const currentStepData = STEPS[currentStep - 1];
@@ -750,7 +751,9 @@ export function RegistroNuevo() {
         id_eval_ia: formData.evaluacionIA?.id_eval_ia,
         id_medico: 1, // TODO: Obtener ID del médico logueado
         pertinencia_medico: true, // Boolean: true/false
-        observaciones: `Decisión médica: ${decision}`,
+        observaciones: observacionesMedico 
+          ? `Decisión médica: ${decision}. Observaciones: ${observacionesMedico}` 
+          : `Decisión médica: ${decision}`,
         estado_aseguradora: 'Pendiente',
         sugerencia_ia: formData.evaluacionIA?.pertinencia_ia ? 'Activar' : 'No activar'
       };
@@ -916,42 +919,59 @@ export function RegistroNuevo() {
           </div>
         )}
 
-        {/* Decisión de Ley de Urgencia */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4 text-center">
-            ¿Aceptar recomendación de la IA?
-          </h4>
-          <p className="text-gray-600 text-sm text-center mb-6">
-            Basándose en la evaluación de la IA, tome la decisión final sobre la activación de la Ley de Urgencia.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              type="button"
-              onClick={() => submitLeyUrgencia('SÍ - Activar Ley de Urgencia')}
-              disabled={loading}
-              className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              SÍ
-            </button>
+        {/* Decisión de Ley de Urgencia y Observaciones */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Decisión de Ley de Urgencia */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h4 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+              ¿Aceptar recomendación de la IA?
+            </h4>
+            <p className="text-gray-600 text-sm text-center mb-6">
+              Basándose en la evaluación de la IA, tome la decisión final sobre la activación de la Ley de Urgencia.
+            </p>
             
-            <button
-              type="button"
-              onClick={() => submitLeyUrgencia('NO - No activar Ley de Urgencia')}
-              disabled={loading}
-              className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              NO
-            </button>
-            
-            <button
-              type="button"
-              onClick={() => submitLeyUrgencia('PENDIENTE - Dejar pendiente la activación')}
-              disabled={loading}
-              className="bg-amber-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Dejar Pendiente
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                type="button"
+                onClick={() => submitLeyUrgencia('SÍ - Activar Ley de Urgencia')}
+                disabled={loading}
+                className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                SÍ
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => submitLeyUrgencia('NO - No activar Ley de Urgencia')}
+                disabled={loading}
+                className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                NO
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => submitLeyUrgencia('PENDIENTE - Dejar pendiente la activación')}
+                disabled={loading}
+                className="bg-amber-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Dejar Pendiente
+              </button>
+            </div>
+          </div>
+
+          {/* Observaciones Medico */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h4 className="text-lg font-semibold text-gray-900 mb-4">
+              Observaciones Medico
+            </h4>
+            <textarea
+              value={observacionesMedico}
+              onChange={(e) => setObservacionesMedico(e.target.value)}
+              placeholder="Ingrese sus observaciones aquí..."
+              className="input w-full min-h-[150px] resize-y"
+              rows={6}
+            />
           </div>
         </div>
 
