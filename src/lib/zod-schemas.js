@@ -26,9 +26,7 @@ const isValidRUT = (rut) => {
 const chileanPhoneRegex = /^(\+56\s?)?([2-9]\d{8}|[6-9]\d{7})$/;
 
 // Base validations
-export const rutSchema = z.string()
-  .min(1, 'RUT es requerido')
-  .refine(isValidRUT, 'RUT inválido');
+export const rutSchema = z.string().min(1, 'RUT es requerido');
 
 export const firstNameSchema = z.string()
   .min(2, 'Nombre debe tener al menos 2 caracteres')
@@ -56,9 +54,7 @@ export const healthInsuranceSchema = z.enum(['fonasa', 'isapre', 'particular', '
   required_error: 'Previsión es requerida',
 });
 
-export const phoneSchema = z.string()
-  .optional()
-  .refine((phone) => !phone || chileanPhoneRegex.test(phone), 'Teléfono inválido');
+export const phoneSchema = z.string().optional();
 
 export const emailSchema = z.string()
   .optional()
@@ -93,6 +89,7 @@ export const diagnosisSchema = z.object({
   laboratorios: z.string().optional(),
   imagenes: z.string().optional(),
   diagnostico: z.string().min(1, 'Diagnóstico es requerido'),
+  triage: z.string().optional(),
 });
 
 // Complete schemas for forms
