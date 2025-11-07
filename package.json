@@ -23,10 +23,12 @@
     "@tanstack/react-query": "^5.90.2",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.18",
+    "jwt-decode": "2",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.63.0",
+    "react-is": "^19.2.0",
     "react-router-dom": "^7.9.1",
     "recharts": "^3.2.1",
     "zod": "^4.1.11"
