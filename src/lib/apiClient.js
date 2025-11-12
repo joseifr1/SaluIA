@@ -46,20 +46,20 @@ class ApiClient {
       return await response.json();
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error.name === 'AbortError') {
         throw new ApiError(408, 'Tiempo de espera agotado');
       }
-      
+
       if (error instanceof ApiError) {
         throw error;
       }
-      
+
       // Mejorar mensaje de error de conexión
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         throw new ApiError(500, 'No se puede conectar al servidor. Verifique que el backend esté ejecutándose en http://localhost:8000');
       }
-      
+
       throw new ApiError(500, 'Error de conexión: ' + error.message);
     }
   }
@@ -87,6 +87,10 @@ class ApiClient {
   async getRecords(params = {}) {
     const searchParams = new URLSearchParams(params);
     return this.request(`/records?${searchParams}`);
+  }
+
+  async getRegistros() {
+    return this.request('/registros');
   }
 
   async getRecord(id) {
