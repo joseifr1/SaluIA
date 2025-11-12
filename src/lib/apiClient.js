@@ -146,6 +146,14 @@ class ApiClient {
     });
   }
 
+  async getEvaluacionesLeyUrgencia() {
+    return this.request('/evaluacion-ley-urgencia');
+  }
+
+  async getEvaluacionLeyUrgencia(id) {
+    return this.request(`/evaluacion-ley-urgencia/${id}`);
+  }
+
   async createEvaluacionLeyUrgencia(data) {
     return this.request('/evaluacion-ley-urgencia', {
       method: 'POST',
