@@ -69,10 +69,10 @@ export function CierreEvaluacion() {
         id: id,
         id_episodio: registro.id,
         id_eval_ia: registro.id_eval_ia,
-        patient: {
+    patient: {
           name: registro.patient || 'N/A',
           email: '', // No está disponible en el registro
-        },
+    },
         episode: numeroEpisodio,
         result: evaluacionIA?.pertinencia_ia ? 'applies' : 'not_applies',
         confidence: evaluacionIA?.confianza ? Math.round(evaluacionIA.confianza * 100) : 0,
@@ -94,7 +94,7 @@ export function CierreEvaluacion() {
 
   const onSubmit = async (data) => {
     setLoading(true);
-
+    
     try {
       console.log('Datos de evaluation actual:', evaluation);
       console.log('id_episodio:', evaluation?.id_episodio);
@@ -136,7 +136,7 @@ export function CierreEvaluacion() {
 
       const response = await apiClient.createEvaluacionLeyUrgencia(evaluacionData);
       console.log('Evaluación médica creada exitosamente:', response);
-
+      
       // Navegar de vuelta a la página de resultado para que se actualice
       navigate(`/evaluacion/resultado/${id}`, {
         state: {
@@ -229,7 +229,7 @@ export function CierreEvaluacion() {
           <p className="text-gray-600 mb-4">
             Seleccione su decisión final sobre la activación de la Ley para este caso:
           </p>
-
+          
           <div className="space-y-3">
             <label className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
               <input
@@ -248,7 +248,7 @@ export function CierreEvaluacion() {
                 </div>
               </div>
             </label>
-
+            
             <label className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
               <input
                 {...register('decision')}
@@ -276,17 +276,17 @@ export function CierreEvaluacion() {
             Observaciones Clínicas
           </h2>
           <p className="text-gray-600 mb-4">
-            {isRejecting
+            {isRejecting 
               ? 'Documente las razones por las cuales rechaza la activación de la Ley:'
               : 'Agregue observaciones adicionales sobre este caso (opcional):'
             }
           </p>
-
+          
           <textarea
             {...register('observations', {
               required: isRejecting ? 'Las observaciones son requeridas al rechazar un caso' : false,
             })}
-            placeholder={isRejecting
+            placeholder={isRejecting 
               ? 'Explique las razones médicas para rechazar la activación de la Ley...'
               : 'Observaciones adicionales sobre el caso...'
             }
@@ -304,7 +304,7 @@ export function CierreEvaluacion() {
           <p className="text-gray-600 mb-4">
             Su feedback ayuda a mejorar la precisión del sistema de evaluación automática:
           </p>
-
+          
           <textarea
             {...register('feedback')}
             placeholder="¿Qué tan precisa fue la evaluación de la IA? ¿Hay aspectos que podrían mejorarse?..."
@@ -319,7 +319,7 @@ export function CierreEvaluacion() {
             <Mail className="w-5 h-5" />
             Configuración de Notificaciones
           </h2>
-
+          
           <label className="flex items-start gap-3">
             <input
               {...register('notifyEmail')}
@@ -343,7 +343,7 @@ export function CierreEvaluacion() {
               <div>
                 <h3 className="font-medium text-yellow-800">Confirmación Requerida</h3>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Está rechazando la activación de la Ley para este caso. Asegúrese de que las observaciones
+                  Está rechazando la activación de la Ley para este caso. Asegúrese de que las observaciones 
                   documenten claramente las razones médicas para esta decisión.
                 </p>
               </div>
@@ -361,7 +361,7 @@ export function CierreEvaluacion() {
           >
             Cancelar
           </button>
-
+          
           <button
             type="submit"
             disabled={loading}

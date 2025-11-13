@@ -4,7 +4,7 @@ export const API_CONFIG = {
   TIMEOUT: 10000,
 };
 
-// App Configuration  
+// App Configuration
 export const APP_CONFIG = {
   NAME: 'Red de Salud UC•CHRISTUS',
   ANALYTICS_ID: import.meta.env.VITE_ANALYTICS_ID || '',
@@ -22,7 +22,7 @@ export const USER_ROLES = {
 // Registration Status
 export const REGISTRATION_STATUS = {
   DRAFT: 'draft',
-  SUBMITTED: 'submitted', 
+  SUBMITTED: 'submitted',
   EVALUATING: 'evaluating',
   COMPLETED: 'completed',
   REJECTED: 'rejected',
@@ -31,7 +31,7 @@ export const REGISTRATION_STATUS = {
 // Evaluation Results
 export const EVALUATION_RESULTS = {
   APPLIES: 'applies',
-  NOT_APPLIES: 'not_applies', 
+  NOT_APPLIES: 'not_applies',
   UNCERTAIN: 'uncertain',
 };
 
@@ -56,7 +56,7 @@ export const KEYBOARD_SHORTCUTS = {
 // Form Field Types
 export const FIELD_TYPES = {
   TEXT: 'text',
-  EMAIL: 'email', 
+  EMAIL: 'email',
   PASSWORD: 'password',
   NUMBER: 'number',
   DATE: 'date',

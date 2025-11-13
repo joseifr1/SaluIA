@@ -216,6 +216,101 @@ class ApiClient {
   async searchDiagnosis(query) {
     return this.request(`/cie10/search?q=${encodeURIComponent(query)}`);
   }
+
+  // --- Pacientes ---
+  async getPacientes(params = {}) {
+    const search = new URLSearchParams(params).toString();
+    return this.request(`/pacientes${search ? `?${search}` : ""}`);
+  }
+
+  async getPaciente(id) {
+    return this.request(`/pacientes/${id}`);
+  }
+
+  async createPaciente(data) {
+    console.log('🌐 ApiClient: Creando paciente con datos:', data);
+    console.log('🌐 ApiClient: URL base:', this.baseURL);
+    console.log('🌐 ApiClient: URL completa:', `${this.baseURL}/pacientes`);
+
+    try {
+      const result = await this.request('/pacientes', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      console.log('🌐 ApiClient: Respuesta exitosa:', result);
+      return result;
+    } catch (error) {
+      console.error('🌐 ApiClient: Error en createPaciente:', error);
+      throw error;
+    }
+  }
+
+  async updatePaciente(id, data) {
+    return this.request(`/pacientes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePaciente(id) {
+    return this.request(`/pacientes/${id}`, { method: 'DELETE' });
+  }
+
+  // --- Episodios ---
+  async getEpisodios() {
+    console.log('🌐 ApiClient: Obteniendo episodios...');
+    try {
+      const result = await this.request('/episodios');
+      console.log('🌐 ApiClient: Episodios obtenidos:', result);
+      return result;
+    } catch (error) {
+      console.error('🌐 ApiClient: Error obteniendo episodios:', error);
+      throw error;
+    }
+  }
+
+  async createEpisodio(data) {
+    console.log('🌐 ApiClient: Creando episodio con datos:', data);
+    try {
+      const result = await this.request('/episodios', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      console.log('🌐 ApiClient: Episodio creado exitosamente:', result);
+      return result;
+    } catch (error) {
+      console.error('🌐 ApiClient: Error en createEpisodio:', error);
+      throw error;
+    }
+  }
+
+  // --- Diagnóstico ---
+  async getDiagnosticos() {
+    console.log('🌐 ApiClient: Obteniendo diagnósticos...');
+    try {
+      const result = await this.request('/diagnosticos');
+      console.log('🌐 ApiClient: Diagnósticos obtenidos:', result);
+      return result;
+    } catch (error) {
+      console.error('🌐 ApiClient: Error obteniendo diagnósticos:', error);
+      throw error;
+    }
+  }
+
+  async createDiagnostico(data) {
+    console.log('🌐 ApiClient: Creando diagnóstico con datos:', data);
+    try {
+      const result = await this.request('/diagnosticos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      console.log('🌐 ApiClient: Diagnóstico creado exitosamente:', result);
+      return result;
+    } catch (error) {
+      console.error('🌐 ApiClient: Error en createDiagnostico:', error);
+      throw error;
+    }
+  }
 }
 
 class ApiError extends Error {
