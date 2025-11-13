@@ -22,6 +22,9 @@ export function ResultadoEvaluacion() {
   const [diagnostico, setDiagnostico] = useState(null);
   const [observacion, setObservacion] = useState(null);
   const [pertinencia_medico, setPertinenciaMedico] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [evaluacionMedica, setEvaluacionMedica] = useState(null);
 
   const [userId, setUserId] = useState(null);
 
@@ -37,41 +40,48 @@ export function ResultadoEvaluacion() {
         }
       }
 
-    const fetchEvaluationAndPaciente = async () => {
-      try {
-        // 1️⃣ Obtener evaluación IA
-        const evaluacionIA = await apiClient.getEvaluacionIA(id);
-        setEvaluation(evaluacionIA);
+      const fetchEvaluationAndPaciente = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          // 1️⃣ Obtener evaluación IA
+          const evaluacionIA = await apiClient.getEvaluacionIA(id);
+          setEvaluation(evaluacionIA);
 
-        // 2️⃣ Obtener paciente asociado al episodio
-        if (evaluacionIA?.id_episodio) {
-          const pacienteData = await apiClient.getPacientePorEpisodio(evaluacionIA.id_episodio);
-          setPaciente(pacienteData);
+          // 2️⃣ Obtener paciente asociado al episodio
+          if (evaluacionIA?.id_episodio) {
+            const pacienteData = await apiClient.getPacientePorEpisodio(evaluacionIA.id_episodio);
+            setPaciente(pacienteData);
 
-        // 3️⃣ Obtener diagnóstico asociado a la evaluación
-        if (evaluacionIA?.id_diagnostico) {
-          const diagnosticoData = await apiClient.getDiagnostico(evaluacionIA.id_diagnostico);
-          setDiagnostico(diagnosticoData);
-          console.log(diagnosticoData)
+            // Verificar si ya existe una evaluación médica
+            try {
+              const registros = await apiClient.getRegistros();
+              const registro = registros.find(r => r.id === evaluacionIA.id_episodio);
+              if (registro?.id_eval_medica) {
+                const evaluacionMedicaExistente = await apiClient.getEvaluacionLeyUrgencia(registro.id_eval_medica);
+                setEvaluacionMedica(evaluacionMedicaExistente);
+              }
+            } catch (err) {
+              console.warn('No se pudo obtener evaluación médica:', err);
+            }
+          }
+
+          // 3️⃣ Obtener diagnóstico asociado a la evaluación
+          if (evaluacionIA?.id_diagnostico) {
+            const diagnosticoData = await apiClient.getDiagnostico(evaluacionIA.id_diagnostico);
+            setDiagnostico(diagnosticoData);
+            console.log(diagnosticoData)
+          }
+        } catch (error) {
+          console.error('Error al obtener evaluación o paciente:', error);
+          setError(error.message || 'Error al cargar la evaluación');
+        } finally {
+          setLoading(false);
         }
-        }
-      } catch (error) {
-        console.error('Error al obtener evaluación o paciente:', error);
-      }
-    };
+      };
 
-    fetchEvaluationAndPaciente();
-  }, [id]);
-
-  // Si no hay evaluación todavía
-  if (!evaluation) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <XCircle className="w-10 h-10 text-red-500 mb-4" />
-        <p className="text-gray-700">No se pudo obtener la evaluación.</p>
-      </div>
-    );
-  }
+      fetchEvaluationAndPaciente();
+    }, [id]);
 
   // --- Funciones auxiliares ---
   const getResultIcon = (pertinencia) => {
@@ -119,8 +129,19 @@ export function ResultadoEvaluacion() {
     );
   };
 
-  const handlePrint = () => window.print();
   const handleExportPDF = () => console.log('Exportando PDF del resultado de evaluación');
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleAccept = () => {
+    navigate(`/evaluacion/cierre/${id}`);
+  };
+
+  const handleReject = () => {
+    navigate(`/evaluacion/cierre/${id}?action=reject`);
+  };
 
   const handleGuardarEvaluacion = async () => {
     if (pertinencia_medico === null) {
@@ -454,106 +475,7 @@ export function ResultadoEvaluacion() {
 
     </div>
 
-      {/* Criteria evaluation */}
-      {evaluation.criterios && (
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Criterios Evaluados</h2>
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{evaluation.criterios}</p>
-          </div>
-        </div>
-      )}
 
-      {/* Justificación */}
-      {evaluation.justificacion && (
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Justificación</h2>
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{evaluation.justificacion}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Evaluación médica existente */}
-      {yaProcesada && evaluacionMedica && (
-        <div className="card bg-blue-50 border-blue-200">
-          <h2 className="text-lg font-semibold text-blue-900 mb-4">Evaluación Médica Realizada</h2>
-          <div className="space-y-2">
-            <div>
-              <span className="text-sm font-medium text-blue-800">Decisión: </span>
-              <span className="text-sm text-blue-700">
-                {evaluacionMedica.pertinencia_medico ? 'Aplica para Activación de Ley' : 'No Aplica para Activación de Ley'}
-              </span>
-            </div>
-            {evaluacionMedica.observaciones && (
-              <div>
-                <span className="text-sm font-medium text-blue-800">Observaciones: </span>
-                <p className="text-sm text-blue-700 mt-1">{evaluacionMedica.observaciones}</p>
-              </div>
-            )}
-            {evaluacionMedica.medico && (
-              <div>
-                <span className="text-sm font-medium text-blue-800">Evaluado por: </span>
-                <span className="text-sm text-blue-700">
-                  {evaluacionMedica.medico.nombre} {evaluacionMedica.medico.apellido}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Actions - Solo mostrar si no hay evaluación médica */}
-      {!yaProcesada && (
-        <div className="card print:hidden">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Acciones Disponibles</h2>
-          <p className="text-gray-600 mb-6">
-            Seleccione la acción apropiada basada en el resultado de la evaluación:
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button
-              onClick={handleAccept}
-              className="btn btn-primary justify-center"
-            >
-              Aceptar Recomendación de la Ley
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </button>
-
-            <button
-              onClick={handleReject}
-              className="btn btn-outline justify-center"
-            >
-              Rechazar Recomendación de la Ley
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </button>
-          </div>
-
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="text-sm font-medium text-blue-900 mb-2">Información Importante</h3>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• La decisión final es responsabilidad del profesional médico</li>
-              <li>• Se registrará la acción tomada para auditoría y seguimiento</li>
-              <li>• Es posible proporcionar feedback sobre la evaluación de IA</li>
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {/* Mensaje si ya fue procesada */}
-      {yaProcesada && (
-        <div className="card print:hidden bg-gray-50 border-gray-200">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-gray-500" />
-            <div>
-              <h3 className="text-sm font-medium text-gray-900">Evaluación ya procesada</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Esta evaluación ya ha sido procesada por un médico. No se pueden realizar cambios adicionales.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

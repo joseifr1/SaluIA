@@ -221,10 +221,6 @@ export function Home() {
         </div>
       </div>
 
-      {/* Test del campo de teléfono - TEMPORAL */}
-      <div className="mt-8 p-6 bg-white rounded-lg shadow">
-        <PhoneTest />
-      </div>
     </div>
   );
 }
