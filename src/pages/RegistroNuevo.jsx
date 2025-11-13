@@ -151,7 +151,7 @@ export function RegistroNuevo() {
           status: 'draft'
         };
         
-        await apiClient.createPatient(apiData);
+        await apiClient.saveDraft(apiData);
       } else {
         // Para otros pasos, usar la estructura original
         const draftData = {
@@ -161,7 +161,7 @@ export function RegistroNuevo() {
           step: currentStep
         };
         
-        await apiClient.createPatient(draftData);
+        await apiClient.saveDraft(draftData);
       }
       
       console.log('Borrador guardado exitosamente');
@@ -177,47 +177,161 @@ export function RegistroNuevo() {
   const submitDiagnostico = async (data) => {
     setLoading(true);
     try {
-      // --- 1️⃣ Crear diagnóstico (o usar el episodio ya existente) ---
-      const episodioId = formData.episodio?.id;
-      const diagnosticoPayload = {
-        id_episodio: episodioId,
+      // Obtener datos del episodio desde formData
+      const episodioData = formData.episodio || {};
+      
+      // Mapear datos para el endpoint de diagnóstico
+      const apiData = {
+        id_episodio: episodioData.id || Math.floor(Math.random() * 1000) + 1, // Usar ID del episodio
         diagnostico: data.diagnostico || '',
         motivo_consulta: data.motivo_consulta || '',
         condicion_clinica: data.condicion_clinica || '',
         anamnesis: data.anamnesis || '',
-        triage: data.triage || '',
         signos_vitales: data.signos_vitales || '',
         examenes: data.examenes || '',
         laboratorios: data.laboratorios || '',
         imagenes: data.imagenes || '',
-        id_usuario: 1 // TODO: reemplazar por el ID real del usuario logueado
+        triage: data.triage || '',
+        id_usuario: 1 // TODO: Obtener ID del usuario logueado
       };
-
-      console.log('📋 Enviando diagnóstico:', diagnosticoPayload);
-      const diagnosticoResponse = await apiClient.createDiagnostico(diagnosticoPayload);
-      console.log('✅ Diagnóstico creado:', diagnosticoResponse);
-
-      // --- 2️⃣ Procesar la evaluación IA asociada ---
-      console.log('🤖 Solicitando procesamiento IA...');
-      const iaResponse = await apiClient.procesarEvaluacionIA(diagnosticoResponse.id);
-      console.log('✅ Evaluación IA generada:', iaResponse);
-
-      // El endpoint de generación debería devolverte el id_eval_ia creado
-      const idEvaluacion = iaResponse.id_eval_ia || iaResponse.evaluacion_guardada?.id_eval_ia;
-      if (!idEvaluacion) {
-        throw new Error('No se recibió el id_eval_ia en la respuesta del servidor');
-      }
-
-      navigate(`/evaluacion/resultado/${idEvaluacion}`);
-
+      
+      console.log('Enviando datos del diagnóstico a la API:', apiData);
+      console.log('URL completa:', `${apiClient.baseURL}/diagnosticos`);
+      
+      // POST real al backend
+      const response = await apiClient.createDiagnostico(apiData);
+      console.log('Diagnóstico creado exitosamente:', response);
+      
+      // Procesar evaluación con IA
+      const iaData = {
+        diagnostico: data.diagnostico,
+        motivo_consulta: data.motivo_consulta,
+        condicion_clinica: data.condicion_clinica,
+        signos_vitales: data.signos_vitales || '',
+        anamnesis: data.anamnesis || '',
+        examenes_fisicos: data.examenes || '',
+        laboratorios: data.laboratorios || '',
+        imagenes: data.imagenes || ''
+      };
+      
+      console.log('Enviando datos a la IA:', iaData);
+      const iaResponse = await apiClient.procesarEvaluacionIA(iaData);
+      console.log('Evaluación IA procesada:', iaResponse);
+      console.log('datos_ia:', iaResponse.datos_ia);
+      console.log('recomendaciones en datos_ia:', iaResponse.datos_ia?.recomendaciones);
+      
+      // Crear evaluación IA en la base de datos
+      const evaluacionData = {
+        id_episodio: episodioData.id,
+        id_diagnostico: response.id,
+        datos_ia: iaResponse.datos_ia || iaResponse
+      };
+      
+      console.log('Creando evaluación IA:', evaluacionData);
+      const evaluacionResponse = await apiClient.createEvaluacionIA(evaluacionData);
+      console.log('Evaluación IA creada:', evaluacionResponse);
+      
+      // Extraer datos_ia: puede venir directamente en iaResponse o en iaResponse.datos_ia
+      const datosIA = iaResponse.datos_ia || iaResponse;
+      
+      // Guardar datos incluyendo la evaluación IA con todas las propiedades de datos_ia
+      // Priorizar datos_ia sobre evaluacion para evitar que se sobrescriban las recomendaciones
+      setFormData(prev => ({
+        ...prev,
+        diagnosis: data,
+        diagnosticoId: response.id,
+        evaluacionIA: {
+          ...evaluacionResponse.evaluacion,
+          ...datosIA,
+          // Asegurar que las recomendaciones se preserven
+          recomendaciones: datosIA.recomendaciones || evaluacionResponse.evaluacion?.recomendaciones,
+          riesgo: datosIA.riesgo || evaluacionResponse.evaluacion?.riesgo,
+          tiempo_estimado: datosIA.tiempo_estimado || evaluacionResponse.evaluacion?.tiempo_estimado,
+        }
+      }));
+      
+      console.log('Evaluación guardada en formData:', {
+        ...evaluacionResponse.evaluacion,
+        ...datosIA,
+        recomendaciones: datosIA.recomendaciones || evaluacionResponse.evaluacion?.recomendaciones,
+      });
+      
+      setCurrentStep(currentStep + 1);
+      
+      alert('Diagnóstico creado y evaluado con IA exitosamente');
     } catch (error) {
-      console.error('❌ Error al registrar diagnóstico o evaluación IA:', error);
-      alert(`Error: ${error.message}`);
+      console.error('Error creando diagnóstico:', error);
+      
+      // Si es error de conexión, usar datos mock
+      if (error.message.includes('No se puede conectar al servidor') || error.message.includes('Load failed')) {
+        console.log('Backend no disponible o endpoint incorrecto, usando datos mock');
+        console.log('Error específico:', error.message);
+        console.log('Verifique que el endpoint /diagnosticos esté disponible en http://127.0.0.1:8000');
+        
+        // Simular respuesta exitosa del diagnóstico
+        const mockDiagnosticoResponse = {
+          id: Math.floor(Math.random() * 1000) + 1,
+          message: 'Diagnóstico creado (modo demo)',
+        };
+        
+        console.log('Diagnóstico creado en modo demo:', mockDiagnosticoResponse);
+        
+        // Simular evaluación IA
+        const mockIAResponse = {
+          datos_ia: {
+            modelo: 'saluia-v1.0',
+            pertinencia_ia: true,
+            criterios: `Criterios evaluados para diagnóstico: ${data.diagnostico}`,
+            fuentes_utilizadas: 'Protocolos médicos estándar, guías clínicas actualizadas',
+            confianza: 0.85,
+            recomendaciones: [
+              'Seguimiento clínico recomendado',
+              'Considerar exámenes complementarios',
+              'Evaluar respuesta al tratamiento'
+            ],
+            riesgo: 'Bajo',
+            tiempo_estimado: '24-48 horas'
+          }
+        };
+        
+        console.log('Evaluación IA procesada en modo demo:', mockIAResponse);
+        
+        // Simular evaluación IA creada
+        const mockEvaluacionResponse = {
+          evaluacion: {
+            id_eval_ia: Math.floor(Math.random() * 1000) + 1,
+            modelo: 'saluia-v1.0',
+            pertinencia_ia: true,
+            confianza: 0.85,
+            criterios: mockIAResponse.datos_ia.criterios,
+            fuentes_utilizadas: mockIAResponse.datos_ia.fuentes_utilizadas,
+            fecha_evaluacion: new Date().toISOString()
+          }
+        };
+        
+        console.log('Evaluación IA creada en modo demo:', mockEvaluacionResponse);
+        
+        // Guardar datos incluyendo la evaluación IA con todas las propiedades de datos_ia
+        setFormData(prev => ({
+          ...prev,
+          diagnosis: data,
+          diagnosticoId: mockDiagnosticoResponse.id,
+          evaluacionIA: {
+            ...mockEvaluacionResponse.evaluacion,
+            ...mockIAResponse.datos_ia
+          }
+        }));
+        
+        setCurrentStep(currentStep + 1);
+        
+        alert('Diagnóstico creado y evaluado con IA exitosamente (modo demo - verifique endpoints /diagnosticos, /evaluacion y /evaluacion-ia en http://127.0.0.1:8000)');
+      } else {
+        alert('Error al crear diagnóstico: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }
   };
-
 
   const submitPatientData = async (data) => {
     setLoading(true);
@@ -1293,13 +1407,7 @@ export function RegistroNuevo() {
             disabled={loading}
             className="btn btn-primary"
           >
-          {currentStep === 2 ? (
-            loading ? (
-              'Generando respuesta con IA...'
-            ) : (
-              'Evaluar con IA'
-            )
-            ) : currentStep === 4 ? (
+            {currentStep === 4 ? (
               loading ? 'Enviando...' : 'Evaluar con IA'
             ) : (
               <>
