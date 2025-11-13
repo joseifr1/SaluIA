@@ -1,57 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, Download, Plus, Calendar, FileText, Eye } from 'lucide-react';
+import { Search, Filter, Download, Plus, Calendar, FileText, Eye, Loader2 } from 'lucide-react';
 import { Table } from '../components/Table.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { NoRecordsFound } from '../components/EmptyState.jsx';
+import { apiClient } from '../lib/apiClient.js';
 
 export function Registros() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock data
-  const records = [
-    {
-      id: 1,
-      date: '2024-01-15',
-      episode: 'EP-2024-001',
-      patient: 'María González P.',
-      professional: 'Dr. Juan Pérez',
-      diagnosis: 'Hipertensión arterial',
-      status: 'completed',
-      result: 'applies',
-      insurance: 'FONASA',
-      rut: '12.345.678-9',
-      age: 65,
-    },
-    {
-      id: 2,
-      date: '2024-01-14',
-      episode: 'EP-2024-002',
-      patient: 'Juan Carlos M.',
-      professional: 'Dra. Ana López',
-      diagnosis: 'Diabetes tipo 2',
-      status: 'evaluating',
-      result: null,
-      insurance: 'ISAPRE',
-      rut: '23.456.789-0',
-      age: 52,
-    },
-    {
-      id: 3,
-      date: '2024-01-13',
-      episode: 'EP-2024-003',
-      patient: 'Ana López R.',
-      professional: 'Dr. Carlos Silva',
-      diagnosis: 'Insuficiencia cardíaca',
-      status: 'completed',
-      result: 'not_applies',
-      insurance: 'Particular',
-      rut: '34.567.890-1',
-      age: 78,
-    },
-  ];
+  useEffect(() => {
+    loadRegistros();
+  }, []);
+
+  const loadRegistros = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiClient.getRegistros();
+      setRecords(data);
+    } catch (err) {
+      console.error('Error cargando registros:', err);
+      setError(err.message || 'Error al cargar registros');
+      // En caso de error, mantener array vacío
+      setRecords([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const statusOptions = [
     { value: '', label: 'Todos los estados' },
@@ -123,13 +104,13 @@ export function Registros() {
   ];
 
   const filteredRecords = records.filter(record => {
-    const matchesSearch = !searchQuery || 
+    const matchesSearch = !searchQuery ||
       record.patient.toLowerCase().includes(searchQuery.toLowerCase()) ||
       record.episode.toLowerCase().includes(searchQuery.toLowerCase()) ||
       record.diagnosis.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesStatus = !statusFilter || record.status === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -169,7 +150,7 @@ export function Registros() {
             Historial de episodios médicos registrados
           </p>
         </div>
-        
+
         <Link to="/registros/nuevo" className="btn btn-primary">
           <Plus className="w-4 h-4 mr-2" />
           Nuevo Registro
@@ -192,7 +173,7 @@ export function Registros() {
               />
             </div>
           </div>
-          
+
           <div className="sm:w-48">
             <select
               value={statusFilter}
@@ -206,7 +187,7 @@ export function Registros() {
               ))}
             </select>
           </div>
-          
+
           <button
             onClick={handleExport}
             className="btn btn-outline"
@@ -221,7 +202,24 @@ export function Registros() {
       {/* Results */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          {filteredRecords.length > 0 ? (
+          {loading ? (
+            <div className="card">
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mr-3" />
+                <p className="text-gray-600">Cargando registros...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="card bg-red-50 border-red-200">
+              <p className="text-red-800 mb-4">Error al cargar registros: {error}</p>
+              <button
+                onClick={loadRegistros}
+                className="btn btn-outline"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : filteredRecords.length > 0 ? (
             <div className="card p-0">
               <Table
                 columns={columns}
@@ -251,7 +249,7 @@ export function Registros() {
             <Eye className="w-5 h-5" />
             Detalle del Registro
           </h3>
-          
+
           {selectedRecord ? (
             <div className="space-y-4">
               <div>
