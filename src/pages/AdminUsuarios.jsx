@@ -22,6 +22,7 @@ export function AdminUsuarios() {
     { value: '', label: 'Todos los estados' },
     { value: 'active', label: 'Activos' },
     { value: 'pending', label: 'Pendientes' },
+    { value: 'rejected', label: 'Rechazados' },
     { value: 'disabled', label: 'Deshabilitados' },
   ];
 
@@ -70,6 +71,8 @@ export function AdminUsuarios() {
             return <Badge variant="success">Activo</Badge>;
           case 'pending':
             return <Badge variant="warning">Pendiente</Badge>;
+          case 'rejected':
+            return <Badge variant="danger">Rechazado</Badge>;
           case 'disabled':
             return <Badge variant="danger">Deshabilitado</Badge>;
           default:
@@ -105,50 +108,174 @@ export function AdminUsuarios() {
     return matchesSearch && matchesStatus;
   });
 
-  const pendingUsers = solicitudes; // list shown in Pending section comes from solicitudes endpoint
+  const pendingUsers = solicitudes.filter(s => s.estado === 'pendiente');
   const activeUsers = users.filter(user => user.is_active || user.status === 'active');
 
-  const handleApproveUser = async (userId) => {
+  // Resolve a solicitud id from different kinds of inputs (handles backend keys id_solicitud / id_usuario)
+  const resolveSolicitudId = (input) => {
+    if (input == null) return null;
+
+    // If a number was passed: it could be a solicitud.id_solicitud OR a usuario.id
+    if (typeof input === 'number') {
+      // If there's a solicitud with this id_solicitud, return it
+      const bySolicitudId = solicitudes.find((s) => s.id_solicitud === input);
+      if (bySolicitudId) return bySolicitudId.id_solicitud;
+
+      // otherwise try match by id_usuario
+      const byUsuarioId = solicitudes.find((s) => s.id_usuario === input || (s.usuario && s.usuario.id === input));
+      if (byUsuarioId) return byUsuarioId.id_solicitud;
+
+      return null;
+    }
+
+    // If an object was passed, it could be a solicitud object or a user-like object
+    // If it's a solicitud object (has id_solicitud), prefer matching by it
+    if (input && input.id_solicitud) {
+      const maybeSolicitud = solicitudes.find((s) => s.id_solicitud === input.id_solicitud);
+      if (maybeSolicitud) return maybeSolicitud.id_solicitud;
+    }
+
+    // Try match by id_usuario inside solicitudes (e.g., selectedUser.id -> match s.id_usuario)
+    if (input && input.id) {
+      const byUsuario = solicitudes.find((s) => s.id_usuario === input.id || (s.usuario && s.usuario.id === input.id));
+      if (byUsuario) return byUsuario.id_solicitud;
+    }
+
+    // Try match by email (if present)
+    if (input && input.email) {
+      const byEmail = solicitudes.find((s) => (s.email && s.email === input.email) || (s.usuario && s.usuario.email === input.email));
+      if (byEmail) return byEmail.id_solicitud;
+    }
+
+    return null;
+  };
+
+  const handleApproveUser = async (solicitudId) => {
     try {
-      await apiClient.request(`/solicitudes/${userId}/aceptar`, { method: 'POST' });
-      alert('Solicitud aceptada y usuario activado exitosamente');
+      // LOG: mostrar input y ruta que vamos a llamar
+      console.log('[AdminUsuarios] handleApproveUser called with:', { solicitudId, solicitudesCount: solicitudes.length });
+      const route = `${apiClient.baseURL}/solicitudes/${solicitudId}/aceptar`;
+      console.log('[AdminUsuarios] Will call POST', route);
+
+
+      if (!solicitudId) {
+        console.log('[AdminUsuarios] No solicitudId resolved; solicitudes array (first 3):', solicitudes.slice(0,3));
+        alert('No se pudo determinar la solicitud a aprobar');
+        return;
+      }
+
+      const res = await apiClient.request(`/solicitudes/${solicitudId}/aceptar`, { method: 'POST' });
+      console.log('[AdminUsuarios] Approve response:', res);
+
+      // refrescar usuarios y contadores
       await refreshData();
+
+      // si estaba seleccionado como selectedUser, limpiarlo
+      setSelectedUser((prev) => (prev && prev.solicitud_id === solicitudId ? null : prev));
+
+      alert('Solicitud aceptada y usuario activado exitosamente');
     } catch (error) {
-      alert(error.message || 'Error aceptando la solicitud');
+      console.error('[AdminUsuarios] Error approving solicitud:', error);
+      if (error && error.status === 422) {
+        alert('No se pudo aceptar la solicitud: el servidor rechazó la operación (estado no válido). Revisa la consola Network/Response para detalles.');
+      } else {
+        alert(error.message || 'Error aceptando la solicitud (revisa la consola para más detalles)');
+      }
     }
   };
 
-  const handleRejectUser = async (userId) => {
+  const handleRejectUser = async (solicitudId) => {
     const confirmed = confirm('¿Está seguro de que desea rechazar esta solicitud?');
     if (!confirmed) return;
+
     try {
-      await apiClient.request(`/solicitudes/${userId}/rechazar`, { method: 'POST' });
+      console.log('[AdminUsuarios] handleRejectUser called with:', { solicitudId, solicitudesCount: solicitudes.length });
+      const route = `${apiClient.baseURL}/solicitudes/${solicitudId}/rechazar`;
+      console.log('[AdminUsuarios] Will call POST', route);
+      // alert(`DEBUG: POST ${route}`);
+
+      if (!solicitudId) {
+        console.log('[AdminUsuarios] No solicitudId resolved; solicitudes array (first 3):', solicitudes.slice(0,3));
+        alert('No se pudo determinar la solicitud a rechazar');
+        return;
+      }
+
+      const res = await apiClient.request(`/solicitudes/${solicitudId}/rechazar`, { method: 'POST' });
+      console.log('[AdminUsuarios] Reject response:', res);
+
+      // refrescar usuarios y contadores
+      await refreshData();
+
+      setSelectedUser((prev) => (prev && prev.solicitud_id === solicitudId ? null : prev));
       alert('Solicitud rechazada exitosamente');
+    } catch (error) {
+      console.error('[AdminUsuarios] Error rejecting solicitud:', error);
+      if (error && error.status === 422) {
+        alert('No se pudo rechazar la solicitud: el servidor devolvió estado no procesable. Revisa la consola Network/Response para más info.');
+      } else {
+        alert(error.message || 'Error rechazando la solicitud (revisa la consola para más detalles)');
+      }
+    }
+  };
+
+  const handleToggleUserActive = async (user) => {
+    try {
+      const isActive = user.is_active || user.status === 'active';
+
+      const endpoint = isActive
+        ? `/usuarios/${user.id}/deshabilitar`
+        : `/usuarios/${user.id}/activar`;
+
+      await apiClient.request(endpoint, { method: 'POST' });
+
+      // Recargamos todo para refrescar estados/badges
       await refreshData();
     } catch (error) {
-      alert(error.message || 'Error rechazando la solicitud');
+      console.error('Error al cambiar estado del usuario:', error);
+      alert('Ocurrió un error al cambiar el estado del usuario.');
     }
-  };
-
-  const handleDisableUser = async (userId) => {
-    const confirmed = confirm('¿Está seguro de que desea deshabilitar este usuario?');
-    if (confirmed) {
-      console.log('Deshabilitando usuario:', userId);
-      alert(`Usuario deshabilitado`);
-    }
-  };
-
-  const handleReinviteUser = async (userId) => {
-    console.log('Reenviando invitación:', userId);
-    alert(`Invitación reenviada exitosamente`);
   };
 
   const fetchUsers = async () => {
     try {
       const res = await apiClient.request('/usuarios');
-      // assume res is an array of users
-      setUsers(res || []);
-      setTotalUsers(Array.isArray(res) ? res.length : 0);
+      const usuarios = Array.isArray(res) ? res : [];
+
+      const usuariosConEstado = usuarios.map((u) => {
+        // Buscamos una solicitud asociada a este usuario (si existe)
+        const solicitud = solicitudes.find((s) => s.id_usuario === u.id_usuario);
+
+        let status;
+
+        if (u.is_active) {
+          status = 'active';
+        } else if (solicitud?.estado === 'rechazada') {
+          status = 'rejected';
+        } else if (solicitud?.estado === 'pendiente') {
+          status = 'pending';
+        } else {
+          // Usuario inactivo sin solicitud (o sin info)
+          status = 'disabled';
+        }
+
+        return {
+          // mantenemos también los campos originales por si los necesitas
+          ...u,
+          id: u.id_usuario,
+          firstName: u.nombre,
+          lastName: u.apellido,
+          email: u.email,
+          role: u.rol,
+          department: u.servicio || '',
+          status,
+          registrationDate:
+            solicitud?.fecha_registro || solicitud?.fecha_solicitud || null,
+          casesProcessed: u.casos_procesados || 0,
+        };
+      });
+
+      setUsers(usuariosConEstado);
+      setTotalUsers(usuariosConEstado.length);
     } catch (error) {
       console.error('Error fetching users:', error);
     }
@@ -168,6 +295,8 @@ export function AdminUsuarios() {
     try {
       const res = await apiClient.request('/solicitudes');
       setSolicitudes(Array.isArray(res) ? res : []);
+      // Debug: muestra una muestra del payload para inspeccionar forma/keys
+      console.log('[AdminUsuarios] fetchSolicitudes payload sample:', Array.isArray(res) ? res.slice(0,5) : res);
     } catch (error) {
       if (error && error.status === 422) {
         console.error('Solicitudes endpoint returned 422. Response:', error.message || error);
@@ -178,10 +307,62 @@ export function AdminUsuarios() {
   };
 
   const refreshData = async () => {
-    setLoading(true);
-    await Promise.all([fetchUsers(), fetchActiveUsers(), fetchSolicitudes()]);
-    setLoading(false);
+    try {
+      setLoading(true);
+
+      // 1) Primero traemos solicitudes
+      const solicitudesRes = await apiClient.request('/solicitudes');
+      const solicitudesArr = Array.isArray(solicitudesRes) ? solicitudesRes : [];
+      setSolicitudes(solicitudesArr);
+
+      // 2) Luego traemos usuarios (que ahora sí puede usar `solicitudes` del estado)
+      const usuariosRes = await apiClient.request('/usuarios');
+      const usuarios = Array.isArray(usuariosRes) ? usuariosRes : [];
+
+      const usuariosConEstado = usuarios.map((u) => {
+        const solicitud = solicitudesArr.find((s) => s.id_usuario === u.id_usuario);
+
+        let status;
+        if (u.is_active) {
+          status = 'active';
+        } else if (solicitud?.estado === 'rechazada') {
+          status = 'rejected';
+        } else if (solicitud?.estado === 'pendiente') {
+          status = 'pending';
+        } else {
+          status = 'disabled';
+        }
+
+        return {
+          ...u,
+          id: u.id_usuario,
+          firstName: u.nombre,
+          lastName: u.apellido,
+          email: u.email,
+          role: u.rol,
+          department: u.servicio || '',
+          status,
+          registrationDate:
+            solicitud?.fecha_registro || solicitud?.fecha_solicitud || null,
+          casesProcessed: u.casos_procesados || 0,
+        };
+      });
+
+      setUsers(usuariosConEstado);
+      setTotalUsers(usuariosConEstado.length);
+
+      // 3) y finalmente el contador de activos
+      const activosRes = await apiClient.request('/usuarios/activos');
+      setActiveUsersCount(
+        Array.isArray(activosRes) ? activosRes.length : (activosRes && activosRes.count) || 0
+      );
+    } catch (error) {
+      console.error('Error en refreshData:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   useEffect(() => {
     refreshData();
@@ -234,7 +415,7 @@ export function AdminUsuarios() {
             <div>
               <p className="text-sm font-medium text-gray-600">Casos Procesados</p>
               <p className="text-2xl font-semibold text-blue-600">
-                {users.reduce((sum, user) => sum + user.casesProcessed, 0)}
+                {users.reduce((sum, user) => sum + (Number(user.casesProcessed) || 0), 0)}
               </p>
             </div>
             <UserCheck className="w-8 h-8 text-blue-500" />
@@ -244,40 +425,92 @@ export function AdminUsuarios() {
 
       {/* Pending users section */}
       {pendingUsers.length > 0 && (
-        <div className="card bg-yellow-50 border-yellow-200">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="w-5 h-5 text-yellow-600" />
-            <h2 className="text-lg font-semibold text-yellow-900">
-              Usuarios Pendientes de Aprobación ({pendingUsers.length})
-            </h2>
+        <div className="card mb-6 border border-gray-200 shadow-sm">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700">
+                <Clock className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Usuarios pendientes de aprobación
+                </h3>
+                <p className="text-lg text-gray-500">
+                  Revisa las solicitudes recientes y acepta o rechaza el acceso.
+                </p>
+              </div>
+            </div>
+
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-lg font-medium bg-gray-200 text-gray-700">
+              {pendingUsers.length} pendiente{pendingUsers.length !== 1 && 's'}
+            </span>
           </div>
-          
-          <div className="space-y-3">
-            {pendingUsers.map(user => (
-              <div key={user.id} className="bg-white rounded-lg p-4 flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-900">
-                    {user.firstName} {user.lastName}
+
+          {/* Lista scrolleable */}
+          <div className="max-h-80 overflow-y-auto">
+            {pendingUsers.map((solicitud) => (
+              <div
+                key={solicitud.id_solicitud}
+                className="flex items-center justify-between px-5 py-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors"
+              >
+                {/* Info usuario */}
+                <div className="flex flex-col">
+                  
+                  {/* Email + Nombre en grande */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const user = users.find(
+                        (u) =>
+                          u.id_usuario === solicitud.id_usuario ||
+                          u.id === solicitud.id_usuario
+                      );
+                      if (user) setSelectedUser(user);
+                    }}
+                    className="text-lg font-semibold text-blue-700 hover:underline text-left"
+                  >
+                    {solicitud.usuario?.email || 'sin email'}
+                  </button>
+
+                  <div className="text-lg font-medium text-gray-800 leading-tight">
+                    {solicitud.usuario
+                      ? `${solicitud.usuario.nombre ?? ''} ${solicitud.usuario.apellido ?? ''}`
+                      : '—'}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {user.email} • {user.department} • {user.role === 'doctor' ? 'Médico' : 'Enfermero/a'}
+
+                  {/* Rol */}
+                  <div className="text-lg text-gray-600 mt-0.5">
+                    {solicitud.usuario?.rol === 'doctor'
+                      ? 'Médico'
+                      : solicitud.usuario?.rol === 'nurse'
+                      ? 'Enfermero/a'
+                      : solicitud.usuario?.rol || 'Sin rol'}
                   </div>
-                  <div className="text-xs text-gray-400">
-                    Registrado: {new Date(user.registrationDate).toLocaleDateString('es-CL')}
+
+                  {/* Fecha */}
+                  <div className="text-xs text-gray-400 mt-1">
+                    Registrado:{' '}
+                    {solicitud.fecha_solicitud
+                      ? new Date(solicitud.fecha_solicitud).toLocaleDateString('es-CL')
+                      : '—'}
                   </div>
                 </div>
-                
-                <div className="flex items-center gap-2">
+
+                {/* Acciones */}
+                <div className="flex items-center gap-5 text-sm">
                   <button
-                    onClick={() => handleApproveUser(user.id)}
-                    className="btn btn-primary"
+                    onClick={() => handleApproveUser(solicitud.id_solicitud)}
+                    className="inline-flex items-center text-green-700 hover:text-green-800"
                   >
                     <UserCheck className="w-4 h-4 mr-2" />
                     Aprobar
                   </button>
+
                   <button
-                    onClick={() => handleRejectUser(user.id)}
-                    className="btn btn-outline text-red-600 border-red-300 hover:bg-red-50"
+                    onClick={() => handleRejectUser(solicitud.id_solicitud)}
+                    className="inline-flex items-center text-red-600 hover:text-red-700"
                   >
                     <UserX className="w-4 h-4 mr-2" />
                     Rechazar
@@ -285,9 +518,12 @@ export function AdminUsuarios() {
                 </div>
               </div>
             ))}
+
           </div>
         </div>
       )}
+
+
 
       {/* Filters and search */}
       <div className="card">
@@ -337,14 +573,32 @@ export function AdminUsuarios() {
             {selectedUser.status === 'pending' && (
               <>
                 <button
-                  onClick={() => handleApproveUser(selectedUser.id)}
+                  onClick={() => {
+                    const resolved = resolveSolicitudId(selectedUser);
+                    console.log('[AdminUsuarios] Approve from panel resolvedSolicitudId:', resolved, 'selectedUser:', selectedUser);
+                    if (!resolved) {
+                      alert('No se encontró solicitud para este usuario. Por favor aprueba desde la lista de pendientes o revisa la consola.');
+                      console.log('[AdminUsuarios] solicitudes sample:', solicitudes.slice(0,5));
+                      return;
+                    }
+                    handleApproveUser(resolved);
+                  }}
                   className="btn btn-primary"
                 >
                   <UserCheck className="w-4 h-4 mr-2" />
                   Aprobar Usuario
                 </button>
                 <button
-                  onClick={() => handleRejectUser(selectedUser.id)}
+                  onClick={() => {
+                    const resolved = resolveSolicitudId(selectedUser);
+                    console.log('[AdminUsuarios] Reject from panel resolvedSolicitudId:', resolved, 'selectedUser:', selectedUser);
+                    if (!resolved) {
+                      alert('No se encontró solicitud para este usuario. Por favor rechaza desde la lista de pendientes o revisa la consola.');
+                      console.log('[AdminUsuarios] solicitudes sample:', solicitudes.slice(0,5));
+                      return;
+                    }
+                    handleRejectUser(resolved);
+                  }}
                   className="btn btn-outline text-red-600 border-red-300 hover:bg-red-50"
                 >
                   <UserX className="w-4 h-4 mr-2" />
@@ -352,22 +606,28 @@ export function AdminUsuarios() {
                 </button>
               </>
             )}
-            
-            {selectedUser.status === 'active' && (
+            {/* Botones para usuarios NO pendientes: activar/deshabilitar */}
+            {selectedUser.status !== 'pending' && (
               <>
                 <button
-                  onClick={() => handleDisableUser(selectedUser.id)}
-                  className="btn btn-outline text-red-600 border-red-300 hover:bg-red-50"
+                  onClick={() => handleToggleUserActive(selectedUser)}
+                  className={
+                    (selectedUser.is_active || selectedUser.status === 'active')
+                      ? "btn btn-outline text-red-600 border-red-300 hover:bg-red-50"
+                      : "btn btn-primary"
+                  }
                 >
-                  <UserX className="w-4 h-4 mr-2" />
-                  Deshabilitar Usuario
-                </button>
-                <button
-                  onClick={() => handleReinviteUser(selectedUser.id)}
-                  className="btn btn-outline"
-                >
-                  <Mail className="w-4 h-4 mr-2" />
-                  Reinvitar Usuario
+                  {selectedUser.is_active || selectedUser.status === 'active' ? (
+                    <>
+                      <UserX className="w-4 h-4 mr-2" />
+                      Deshabilitar Usuario
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      Activar Usuario
+                    </>
+                  )}
                 </button>
               </>
             )}
