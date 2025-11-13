@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '../lib/apiClient.js';
-import jwt_decode from "jwt-decode";
+import { jwtDecode } from "jwt-decode";
 
 
 export function ResultadoEvaluacion() {
@@ -29,7 +29,7 @@ export function ResultadoEvaluacion() {
       const token = localStorage.getItem("auth_token");
       if (token) {
         try {
-          const decoded = jwt_decode(token);
+          const decoded = jwtDecode(token);
           setUserId(decoded.sub); // ✅ usar 'sub' en lugar de 'id_usuario'
           console.log("ID del usuario:", decoded.sub);
         } catch (error) {
