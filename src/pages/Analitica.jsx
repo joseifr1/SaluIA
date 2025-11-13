@@ -1,63 +1,49 @@
-import React, { useState } from 'react';
-import { Calendar, TrendingUp, TrendingDown, Activity, Users, FileText, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, TrendingUp, TrendingDown, Activity, Users, FileText, Clock, Loader2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { apiClient } from '../lib/apiClient.js';
 
 export function Analitica() {
   const [dateRange, setDateRange] = useState('last-30-days');
   const [serviceFilter, setServiceFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState({
+    kpis: {
+      compliance: { value: 0, change: 0, total: 0, approved: 0 },
+      processed: { value: 0, change: 0, thisMonth: 0, lastMonth: 0 },
+      pending: { value: 0, change: 0, current: 0, average: 0 },
+      uniquePatients: { value: 0, change: 0, current: 0, lastPeriod: 0 },
+    },
+    monthlyData: [],
+    complianceData: [],
+    serviceData: [],
+  });
 
-  // Mock data
-  const kpiData = {
-    compliance: {
-      value: 87,
-      change: 5,
-      total: 156,
-      approved: 136,
-    },
-    processed: {
-      value: 24,
-      change: 12,
-      thisMonth: 24,
-      lastMonth: 12,
-    },
-    pending: {
-      value: 3,
-      change: -8,
-      current: 3,
-      average: 5,
-    },
-    uniquePatients: {
-      value: 18,
-      change: 3,
-      current: 18,
-      lastPeriod: 15,
-    },
+  useEffect(() => {
+    loadAnalytics();
+  }, [dateRange]);
+
+  const loadAnalytics = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiClient.getAnalytics({ dateRange });
+      setAnalyticsData(data);
+    } catch (err) {
+      console.error('Error cargando analytics:', err);
+      setError(err.message || 'Error al cargar estadísticas');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const monthlyData = [
-    { month: 'Ago', total: 15, approved: 12 },
-    { month: 'Sep', total: 22, approved: 19 },
-    { month: 'Oct', total: 28, approved: 23 },
-    { month: 'Nov', total: 31, approved: 28 },
-    { month: 'Dic', total: 24, approved: 22 },
-    { month: 'Ene', total: 24, approved: 21 },
-  ];
-
-  const complianceData = [
-    { date: '2024-01-01', compliance: 82 },
-    { date: '2024-01-08', compliance: 85 },
-    { date: '2024-01-15', compliance: 88 },
-    { date: '2024-01-22', compliance: 87 },
-    { date: '2024-01-29', compliance: 89 },
-  ];
-
-  const serviceData = [
-    { service: 'Cardiología', total: 45, approved: 39 },
-    { service: 'Medicina Interna', total: 32, approved: 28 },
-    { service: 'Endocrinología', total: 28, approved: 25 },
-    { service: 'Neurología', total: 18, approved: 15 },
-    { service: 'Nefrología', total: 12, approved: 11 },
-  ];
+  const { kpiData, monthlyData, complianceData, serviceData } = {
+    kpiData: analyticsData.kpis,
+    monthlyData: analyticsData.monthlyData || [],
+    complianceData: analyticsData.complianceData || [],
+    serviceData: analyticsData.serviceData || [],
+  };
 
   const dateRangeOptions = [
     { value: 'last-7-days', label: 'Últimos 7 días' },
@@ -76,10 +62,10 @@ export function Analitica() {
 
   const KPICard = ({ title, value, change, icon: Icon, description, variant = 'default' }) => {
     const isPositive = change > 0;
-    const changeColor = variant === 'inverse' 
+    const changeColor = variant === 'inverse'
       ? (isPositive ? 'text-red-600' : 'text-green-600')
       : (isPositive ? 'text-green-600' : 'text-red-600');
-    
+
     return (
       <div className="card">
         <div className="flex items-center justify-between">
@@ -101,6 +87,39 @@ export function Analitica() {
       </div>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-gray-600">Cargando estadísticas...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Análisis y Estadísticas</h1>
+          <p className="mt-2 text-gray-600">
+            Métricas de desempeño y tendencias del sistema
+          </p>
+        </div>
+        <div className="card bg-red-50 border-red-200">
+          <p className="text-red-800 mb-4">Error al cargar estadísticas: {error}</p>
+          <button
+            onClick={loadAnalytics}
+            className="btn btn-outline"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -131,7 +150,7 @@ export function Analitica() {
               ))}
             </select>
           </div>
-          
+
           <div className="sm:w-48">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Servicio
@@ -160,7 +179,7 @@ export function Analitica() {
           icon={Activity}
           description={`${kpiData.compliance.approved} de ${kpiData.compliance.total} activaciones`}
         />
-        
+
         <KPICard
           title="Registros Procesados"
           value={kpiData.processed.value}
@@ -168,7 +187,7 @@ export function Analitica() {
           icon={FileText}
           description="Registros este mes"
         />
-        
+
         <KPICard
           title="Evaluaciones Pendientes"
           value={kpiData.pending.value}
@@ -177,7 +196,7 @@ export function Analitica() {
           description="Promedio: 5 evaluaciones"
           variant="inverse"
         />
-        
+
         <KPICard
           title="Pacientes Únicos"
           value={kpiData.uniquePatients.value}
@@ -199,29 +218,29 @@ export function Analitica() {
               Últimas 5 semanas
             </div>
           </div>
-          
+
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={complianceData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="date" 
+                <XAxis
+                  dataKey="date"
                   tick={{ fontSize: 12 }}
                   tickFormatter={(date) => new Date(date).toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
                 />
-                <YAxis 
+                <YAxis
                   tick={{ fontSize: 12 }}
                   domain={[70, 100]}
                   tickFormatter={(value) => `${value}%`}
                 />
-                <Tooltip 
+                <Tooltip
                   formatter={(value) => [`${value}%`, 'Cumplimiento']}
                   labelFormatter={(date) => new Date(date).toLocaleDateString('es-CL')}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="compliance" 
-                  stroke="var(--primary)" 
+                <Line
+                  type="monotone"
+                  dataKey="compliance"
+                  stroke="var(--primary)"
                   strokeWidth={2}
                   dot={{ fill: 'var(--primary)', strokeWidth: 2, r: 4 }}
                   activeDot={{ r: 6 }}
@@ -241,7 +260,7 @@ export function Analitica() {
               Últimos 6 meses
             </div>
           </div>
-          
+
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyData}>
@@ -267,7 +286,7 @@ export function Analitica() {
             Período seleccionado
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
@@ -290,39 +309,47 @@ export function Analitica() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {serviceData.map((service) => {
-                const compliance = Math.round((service.approved / service.total) * 100);
-                return (
-                  <tr key={service.service} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {service.service}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {service.total}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {service.approved}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        compliance >= 90 ? 'bg-green-100 text-green-800' :
-                        compliance >= 80 ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {compliance}%
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-primary h-2 rounded-full"
-                          style={{ width: `${compliance}%` }}
-                        ></div>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {serviceData.length > 0 ? (
+                serviceData.map((service) => {
+                  const compliance = Math.round((service.approved / service.total) * 100);
+                  return (
+                    <tr key={service.service} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {service.service}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {service.total}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {service.approved}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          compliance >= 90 ? 'bg-green-100 text-green-800' :
+                          compliance >= 80 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {compliance}%
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-primary h-2 rounded-full"
+                            style={{ width: `${compliance}%` }}
+                          ></div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                    No hay datos disponibles para el período seleccionado
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
