@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, FileText, BarChart3, Clock, TrendingUp, Users, Calendar } from 'lucide-react';
+import { PhoneTest } from '../components/PhoneTest.jsx';
 
 export function Home() {
   // Mock data for recent episodes
@@ -52,7 +53,7 @@ export function Home() {
 
   const getResultBadge = (result) => {
     if (!result) return null;
-    
+
     switch (result) {
       case 'applies':
         return <span className="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Aplica</span>;
@@ -218,6 +219,11 @@ export function Home() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Test del campo de teléfono - TEMPORAL */}
+      <div className="mt-8 p-6 bg-white rounded-lg shadow">
+        <PhoneTest />
       </div>
     </div>
   );

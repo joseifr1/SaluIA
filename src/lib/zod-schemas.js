@@ -4,36 +4,49 @@ import { z } from 'zod';
 const isValidRUT = (rut) => {
   const cleanRUT = rut.replace(/[^0-9kK]/g, '');
   if (cleanRUT.length < 2) return false;
-  
+
   const body = cleanRUT.slice(0, -1);
   const dv = cleanRUT.slice(-1).toLowerCase();
-  
+
   let sum = 0;
   let multiplier = 2;
-  
+
   for (let i = body.length - 1; i >= 0; i--) {
     sum += parseInt(body[i]) * multiplier;
     multiplier = multiplier === 7 ? 2 : multiplier + 1;
   }
-  
+
   const remainder = sum % 11;
   const calculatedDV = remainder === 0 ? '0' : remainder === 1 ? 'k' : (11 - remainder).toString();
-  
+
   return dv === calculatedDV;
 };
 
-// Chilean phone validation
-const chileanPhoneRegex = /^(\+56\s?)?([2-9]\d{8}|[6-9]\d{7})$/;
+// Chilean phone validation - must start with +56 followed by 9 digits
+const isValidChileanPhone = (phone) => {
+  if (!phone || phone.trim() === '') return true; // Optional field
+
+  // Must start with +56 followed by exactly 9 digits
+  const phoneRegex = /^\+56\d{9}$/;
+  return phoneRegex.test(phone);
+};
 
 // Base validations
-export const rutSchema = z.string().min(1, 'RUT es requerido');
+export const rutSchema = z.string()
+  .min(1, 'RUT es requerido')
+  .refine((rut) => {
+    // Permitir RUTs sin validación estricta por ahora para testing
+    if (!rut || rut.trim() === '') return false;
+    // Validación básica: debe tener al menos 8 caracteres
+    return rut.length >= 8;
+  }, 'RUT debe tener al menos 8 caracteres');
 
 export const firstNameSchema = z.string()
-  .min(2, 'Nombre debe tener al menos 2 caracteres')
+  .min(1, 'Nombre es requerido')
   .max(50, 'Nombre no debe exceder 50 caracteres');
 
 export const lastNameSchema = z.string()
-  .min(2, 'Apellido debe tener al menos 2 caracteres')
+  .min(1, 'Apellido es requerido')
   .max(50, 'Apellido no debe exceder 50 caracteres');
 
 export const birthDateSchema = z.string()
@@ -54,7 +67,9 @@ export const healthInsuranceSchema = z.enum(['fonasa', 'isapre', 'particular', '
   required_error: 'Previsión es requerida',
 });
 
-export const phoneSchema = z.string().optional();
+export const phoneSchema = z.string()
+  .optional()
+  .refine((phone) => isValidChileanPhone(phone), 'Teléfono inválido. Debe empezar con +56 seguido de 9 dígitos');
 
 export const emailSchema = z.string()
   .optional()
