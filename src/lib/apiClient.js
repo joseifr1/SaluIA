@@ -132,8 +132,14 @@ class ApiClient {
     });
   }
 
-  async procesarEvaluacionIA(data) {
-    return this.request('/evaluacion', {
+  async getDiagnostico(id) {
+    return this.request(`/diagnosticos/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async procesarEvaluacionIA(idDiagnostico, data) {
+    return this.request(`/diagnosticos/${idDiagnostico}/evaluacion-ia`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -146,6 +152,25 @@ class ApiClient {
     });
   }
 
+  // Obtener evaluación IA por ID
+  async getEvaluacionIA(idEvaluacion) {
+    return this.request(`/evaluacion-ia/${idEvaluacion}`, {
+      method: 'GET',
+    });
+  }
+
+  // 🧍 Obtener paciente a partir del ID de episodio
+  async getPacientePorEpisodio(idEpisodio) {
+    try {
+      const response = await this.request(`/paciente-por-episodio/${idEpisodio}`);
+      return response;
+    } catch (error) {
+      console.error(`Error al obtener paciente por episodio ${idEpisodio}:`, error);
+      throw error;
+    }
+
+  }
+  
   async getEvaluacionesLeyUrgencia() {
     return this.request('/evaluacion-ley-urgencia');
   }
