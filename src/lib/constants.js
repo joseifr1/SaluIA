@@ -42,7 +42,7 @@ export const NAVIGATION_ITEMS = [
   { id: 'records', label: 'Mis Registros', path: '/registros', icon: 'FileText', shortcut: '' },
   { id: 'analytics', label: 'Análisis', path: '/analitica', icon: 'BarChart3', shortcut: '' },
   { id: 'help', label: 'Ayuda', path: '/ayuda', icon: 'HelpCircle', shortcut: null },
-  { id: 'admin', label: 'Administración', path: '/admin/usuarios', icon: 'Settings', shortcut: null, adminOnly: true },
+  { id: 'admin', label: 'Gestión Usuarios', path: '/admin/usuarios', icon: 'Settings', shortcut: null, adminOnly: true },
 ];
 
 // Keyboard Shortcuts
