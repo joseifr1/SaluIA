@@ -100,11 +100,61 @@ export const diagnosisSchema = z.object({
   condicion_clinica: z.string().min(1, 'Condición clínica es requerida'),
   anamnesis: z.string().min(1, 'Anamnesis es requerida'),
   signos_vitales: z.string().optional(),
+  // Campos individuales de signos vitales
+  presion_sistolica: z.number({
+    required_error: 'Presión arterial sistólica es requerida',
+    invalid_type_error: 'Presión arterial sistólica debe ser un número'
+  }).refine((val) => val !== null && val !== undefined, {
+    message: 'Presión arterial sistólica es requerida'
+  }),
+  presion_diastolica: z.number({
+    required_error: 'Presión arterial diastólica es requerida',
+    invalid_type_error: 'Presión arterial diastólica debe ser un número'
+  }).refine((val) => val !== null && val !== undefined, {
+    message: 'Presión arterial diastólica es requerida'
+  }),
+  presion_media: z.number({
+    required_error: 'Presión arterial media es requerida',
+    invalid_type_error: 'Presión arterial media debe ser un número'
+  }).refine((val) => val !== null && val !== undefined, {
+    message: 'Presión arterial media es requerida'
+  }),
+  temperatura: z.number({
+    required_error: 'Temperatura es requerida',
+    invalid_type_error: 'Temperatura debe ser un número'
+  }).refine((val) => val !== null && val !== undefined, {
+    message: 'Temperatura es requerida'
+  }),
+  saturacion_oxigeno: z.number({
+    required_error: 'Saturación oxígeno es requerida',
+    invalid_type_error: 'Saturación oxígeno debe ser un número'
+  }).refine((val) => val !== null && val !== undefined, {
+    message: 'Saturación oxígeno es requerida'
+  }),
+  frecuencia_cardiaca: z.number({
+    required_error: 'Frecuencia cardíaca es requerida',
+    invalid_type_error: 'Frecuencia cardíaca debe ser un número'
+  }).refine((val) => val !== null && val !== undefined, {
+    message: 'Frecuencia cardíaca es requerida'
+  }),
+  frecuencia_respiratoria: z.number().optional(),
+  tipo_cama: z.string().optional(),
+  glasgow: z.number({
+    required_error: 'Glasgow es requerido',
+    invalid_type_error: 'Glasgow debe ser un número'
+  }).refine((val) => val !== null && val !== undefined, {
+    message: 'Glasgow es requerido'
+  }),
+  fio2: z.number().optional(),
+  fio2_mayor_igual_50: z.boolean().optional(),
   examenes: z.string().optional(),
   laboratorios: z.string().optional(),
   imagenes: z.string().optional(),
   diagnostico: z.string().min(1, 'Diagnóstico es requerido'),
-  triage: z.string().optional(),
+  triage: z.number()
+    .min(1, 'Triage debe ser entre 1 y 5')
+    .max(5, 'Triage debe ser entre 1 y 5')
+    .refine((val) => val >= 1 && val <= 5, 'Triage debe ser un número entre 1 y 5'),
 });
 
 // Complete schemas for forms

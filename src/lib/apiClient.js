@@ -18,6 +18,8 @@ class ApiClient {
 
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    // Permitir timeout personalizado por request
+    const timeout = options.timeout || this.timeout;
     const config = {
       headers: {
         'Content-Type': 'application/json',
@@ -26,9 +28,11 @@ class ApiClient {
       },
       ...options,
     };
+    // Remover timeout de options para que no se pase al fetch
+    delete config.timeout;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       const response = await fetch(url, {
@@ -57,7 +61,19 @@ class ApiClient {
 
       // Mejorar mensaje de error de conexión
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        throw new ApiError(500, 'No se puede conectar al servidor. Verifique que el backend esté ejecutándose en http://localhost:8000');
+        const isLocalhost = this.baseURL.includes('127.0.0.1') || this.baseURL.includes('localhost');
+        const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        
+        if (isLocalhost && isProduction) {
+          throw new ApiError(500, 'Error de configuración: La aplicación está intentando conectarse a localhost en producción. Por favor, configure la variable de entorno VITE_API_BASE_URL con la URL de su backend desplegado.');
+        }
+        
+        // Verificar si es un error de CORS
+        if (error.message.includes('CORS') || error.message.includes('blocked')) {
+          throw new ApiError(500, `Error de CORS: El backend en ${this.baseURL} no está permitiendo solicitudes desde ${window.location.origin}. Verifique la configuración de CORS en el backend.`);
+        }
+        
+        throw new ApiError(500, `No se puede conectar al servidor en ${this.baseURL}. Verifique que el backend esté ejecutándose y accesible.`);
       }
 
       throw new ApiError(500, 'Error de conexión: ' + error.message);
@@ -139,9 +155,11 @@ class ApiClient {
   }
 
   async procesarEvaluacionIA(idDiagnostico, data) {
+    // El procesamiento de IA puede tardar más tiempo, usar timeout de 120 segundos
     return this.request(`/diagnosticos/${idDiagnostico}/evaluacion-ia`, {
       method: 'POST',
       body: JSON.stringify(data),
+      timeout: 120000, // 120 segundos
     });
   }
 

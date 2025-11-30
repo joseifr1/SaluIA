@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Save, ArrowRight, ArrowLeft, Stethoscope, User, FileText, CheckCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Stethoscope, User, FileText, CheckCircle } from 'lucide-react';
 import { patientSchema, clinicalSchema, diagnosisSchema } from '../lib/zod-schemas.js';
 import { apiClient } from '../lib/apiClient.js';
 
@@ -129,54 +129,54 @@ export function RegistroNuevo() {
     }
   };
 
-  const saveDraft = async () => {
-    setLoading(true);
-    try {
-      const currentData = form.getValues();
-      
-      // Si estamos en el paso de paciente, mapear a la estructura de la API
-      if (currentStepData.id === 'patient') {
-        // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD para el backend
-        const fechaFormateada = parseDateFromDDMMYYYY(currentData.birthDate || '') || currentData.birthDate || '';
-        
-        const apiData = {
-          rut: currentData.rut || '',
-          nombre: currentData.firstName || '',
-          apellido: currentData.lastName || '',
-          fecha_nacimiento: fechaFormateada,
-          sexo: currentData.gender || '',
-          telefono: currentData.phone || '',
-          email: currentData.email || '',
-          aseguradora: currentData.healthInsurance || '',
-          status: 'draft'
-        };
-        
-        await apiClient.createPatient(apiData);
-      } else {
-        // Para otros pasos, usar la estructura original
-        const draftData = {
-          ...formData,
-          [currentStepData.id]: currentData,
-          status: 'draft',
-          step: currentStep
-        };
-        
-        await apiClient.createPatient(draftData);
-      }
-      
-      console.log('Borrador guardado exitosamente');
-      alert('Borrador guardado exitosamente');
-    } catch (error) {
-      console.error('Error guardando borrador:', error);
-      alert('Error al guardar borrador: ' + error.message);
-    } finally {
-      setLoading(false);
+
+  // Función para formatear signos vitales a texto
+  const formatSignosVitales = (data) => {
+    const signos = [];
+    
+    if (data.presion_sistolica) {
+      signos.push(`Presión arterial sistólica: ${data.presion_sistolica}`);
     }
+    if (data.presion_diastolica) {
+      signos.push(`Presión arterial diastólica: ${data.presion_diastolica}`);
+    }
+    if (data.presion_media) {
+      signos.push(`Presión arterial media: ${data.presion_media}`);
+    }
+    if (data.temperatura) {
+      signos.push(`Temperatura: ${data.temperatura}°C`);
+    }
+    if (data.saturacion_oxigeno) {
+      signos.push(`Saturación oxígeno: ${data.saturacion_oxigeno}%`);
+    }
+    if (data.frecuencia_cardiaca) {
+      signos.push(`Frecuencia cardíaca: ${data.frecuencia_cardiaca} lpm`);
+    }
+    if (data.frecuencia_respiratoria) {
+      signos.push(`Frecuencia respiratoria: ${data.frecuencia_respiratoria} rpm`);
+    }
+    if (data.tipo_cama) {
+      signos.push(`Tipo de cama: ${data.tipo_cama}`);
+    }
+    if (data.glasgow) {
+      signos.push(`Glasgow: ${data.glasgow}`);
+    }
+    if (data.fio2) {
+      signos.push(`FIO2: ${data.fio2}%`);
+    }
+    if (data.fio2_mayor_igual_50 !== null && data.fio2_mayor_igual_50 !== undefined) {
+      signos.push(`FIO2 ≥ 50%: ${data.fio2_mayor_igual_50 ? 'Sí' : 'No'}`);
+    }
+    
+    return signos.join(', ');
   };
 
   const submitDiagnostico = async (data) => {
     setLoading(true);
     try {
+      // Formatear signos vitales a texto
+      const signosVitalesTexto = formatSignosVitales(data);
+      
       // --- 1️⃣ Crear diagnóstico (o usar el episodio ya existente) ---
       const episodioId = formData.episodio?.id;
       const diagnosticoPayload = {
@@ -185,8 +185,8 @@ export function RegistroNuevo() {
         motivo_consulta: data.motivo_consulta || '',
         condicion_clinica: data.condicion_clinica || '',
         anamnesis: data.anamnesis || '',
-        triage: data.triage || '',
-        signos_vitales: data.signos_vitales || '',
+        triage: data.triage ? String(data.triage) : '',
+        signos_vitales: signosVitalesTexto || '',
         examenes: data.examenes || '',
         laboratorios: data.laboratorios || '',
         imagenes: data.imagenes || '',
@@ -237,74 +237,114 @@ export function RegistroNuevo() {
         aseguradora: data.healthInsurance || ''
       };
       
-      console.log('Enviando datos del paciente a la API:', apiData);
-      console.log('URL completa:', `${apiClient.baseURL}/pacientes`);
+      console.log('🔍 Verificando si el RUT ya existe:', apiData.rut);
       
-      // POST real al backend usando el endpoint de pacientes
+      // Buscar paciente por RUT
+      let pacienteExistente = null;
+      let pacienteId = null;
+      
+      try {
+        const pacientes = await apiClient.getPacientes({ rut: apiData.rut });
+        // Si la respuesta es un array, buscar el paciente con el RUT
+        if (Array.isArray(pacientes)) {
+          pacienteExistente = pacientes.find(p => p.rut === apiData.rut || p.rut?.replace(/[.-]/g, '') === apiData.rut?.replace(/[.-]/g, ''));
+        } else if (pacientes && pacientes.rut === apiData.rut) {
+          pacienteExistente = pacientes;
+        }
+        
+        if (pacienteExistente) {
+          // El paciente puede tener id o id_paciente dependiendo de la respuesta
+          pacienteId = pacienteExistente.id || pacienteExistente.id_paciente;
+          console.log('✅ Paciente encontrado con RUT:', apiData.rut, pacienteExistente);
+          console.log('🆔 ID del paciente:', pacienteId);
+        }
+      } catch (searchError) {
+        console.log('⚠️ No se pudo buscar paciente por RUT, continuando con creación:', searchError.message);
+      }
+      
+      // Si el paciente existe, verificar si hay cambios y crear nuevo episodio
+      if (pacienteExistente && pacienteId) {
+        console.log('👤 Paciente existente detectado, verificando cambios...');
+        
+        // Comparar datos para ver si hay cambios
+        const hayCambios = 
+          pacienteExistente.nombre !== apiData.nombre ||
+          pacienteExistente.apellido !== apiData.apellido ||
+          pacienteExistente.fecha_nacimiento !== apiData.fecha_nacimiento ||
+          pacienteExistente.sexo !== apiData.sexo ||
+          pacienteExistente.telefono !== apiData.telefono ||
+          pacienteExistente.email !== apiData.email ||
+          pacienteExistente.aseguradora !== apiData.aseguradora;
+        
+        if (hayCambios) {
+          console.log('📝 Actualizando datos del paciente:', pacienteId);
+          try {
+            await apiClient.updatePaciente(pacienteId, apiData);
+            console.log('✅ Paciente actualizado exitosamente');
+          } catch (updateError) {
+            console.error('⚠️ Error al actualizar paciente:', updateError);
+            // Continuar aunque falle la actualización
+          }
+        } else {
+          console.log('ℹ️ No hay cambios en los datos del paciente');
+        }
+        
+        // SIEMPRE crear un nuevo episodio para el paciente existente
+        const episodioData = {
+          id_paciente: pacienteId,
+          centro: 'UC Christus',
+          fecha_adm: new Date().toISOString().split('T')[0],
+          estado: 'Pendiente'
+        };
+        
+        console.log('📝 Creando nuevo episodio para paciente existente:', episodioData);
+        const episodioResponse = await apiClient.createEpisodio(episodioData);
+        const episodioId = episodioResponse.id;
+        console.log('✅ Nuevo episodio creado:', episodioId);
+        
+        // Guardar datos incluyendo el ID del episodio
+        setFormData(prev => ({
+          ...prev,
+          patient: { ...data, id: pacienteId },
+          episodio: { id: episodioId }
+        }));
+        
+        setCurrentStep(currentStep + 1);
+        setLoading(false);
+        return; // Salir temprano - NO crear paciente nuevo
+      }
+      
+      // Si el paciente NO existe, crear uno nuevo
+      console.log('📝 Creando nuevo paciente:', apiData);
       const response = await apiClient.createPatient(apiData);
-      console.log('Paciente creado exitosamente:', response);
+      console.log('✅ Paciente creado exitosamente:', response);
+      
+      pacienteId = response.id || response.paciente?.id;
       
       // Crear episodio para el paciente
       const episodioData = {
-        id_paciente: response.id || Math.floor(Math.random() * 1000) + 1,
+        id_paciente: pacienteId,
         centro: 'UC Christus',
-        fecha_adm: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
+        fecha_adm: new Date().toISOString().split('T')[0],
         estado: 'Pendiente'
       };
       
-      console.log('Creando episodio:', episodioData);
+      console.log('📝 Creando episodio:', episodioData);
       const episodioResponse = await apiClient.createEpisodio(episodioData);
-      console.log('Episodio creado exitosamente:', episodioResponse);
+      console.log('✅ Episodio creado exitosamente:', episodioResponse);
       
       // Guardar datos incluyendo el ID del episodio
       setFormData(prev => ({
         ...prev,
-        patient: { ...data, id: response.id },
+        patient: { ...data, id: pacienteId },
         episodio: { id: episodioResponse.id }
       }));
       
       setCurrentStep(currentStep + 1);
       
-      alert('Paciente y episodio creados exitosamente');
     } catch (error) {
-      console.error('Error creando paciente:', error);
-      
-      // Si es error de conexión, usar datos mock
-      if (error.message.includes('No se puede conectar al servidor') || error.message.includes('Load failed')) {
-        console.log('Backend no disponible o endpoint incorrecto, usando datos mock');
-        console.log('Error específico:', error.message);
-        console.log('Verifique que el endpoint /pacientes esté disponible en http://127.0.0.1:8000');
-        
-        // Simular respuesta exitosa del paciente
-        const mockPatientResponse = {
-          id: Math.floor(Math.random() * 1000) + 1,
-          message: 'Paciente creado (modo demo)',
-          ...apiData
-        };
-        
-        console.log('Paciente creado en modo demo:', mockPatientResponse);
-        
-        // Simular creación de episodio
-        const mockEpisodioResponse = {
-          id: Math.floor(Math.random() * 1000) + 1,
-          message: 'Episodio creado (modo demo)',
-        };
-        
-        console.log('Episodio creado en modo demo:', mockEpisodioResponse);
-        
-        // Guardar datos incluyendo el ID del episodio
-        setFormData(prev => ({
-          ...prev,
-          patient: { ...data, id: mockPatientResponse.id },
-          episodio: { id: mockEpisodioResponse.id }
-        }));
-        
-        setCurrentStep(currentStep + 1);
-        
-        alert('Paciente y episodio creados exitosamente (modo demo - verifique endpoints /pacientes y /episodios en http://127.0.0.1:8000)');
-      } else {
-        alert('Error al crear paciente: ' + error.message);
-      }
+      console.error('❌ Error en submitPatientData:', error);
+      alert('Error al procesar datos del paciente: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -359,7 +399,7 @@ export function RegistroNuevo() {
             value={watch('rut') || ''}
             onChange={(e) => setValue('rut', e.target.value)}
             placeholder="12.345.678-9"
-            className="input"
+            className="input text-base h-12 px-4"
           />
           {errors.rut && <p className="text-sm text-red-600">{errors.rut.message}</p>}
         </div>
@@ -375,7 +415,7 @@ export function RegistroNuevo() {
             value={watch('firstName') || ''}
             onChange={(e) => setValue('firstName', e.target.value)}
             placeholder="Juan Carlos"
-            className="input"
+            className="input text-base h-12 px-4"
           />
           {errors.firstName && <p className="text-sm text-red-600">{errors.firstName.message}</p>}
         </div>
@@ -391,7 +431,7 @@ export function RegistroNuevo() {
             value={watch('lastName') || ''}
             onChange={(e) => setValue('lastName', e.target.value)}
             placeholder="Pérez González"
-            className="input"
+            className="input text-base h-12 px-4"
           />
           {errors.lastName && <p className="text-sm text-red-600">{errors.lastName.message}</p>}
         </div>
@@ -407,7 +447,7 @@ export function RegistroNuevo() {
             placeholder="DD/MM/YYYY"
             value={formatDateToDDMMYYYY(watch('birthDate') || '')}
             onChange={(e) => handleDateChange(e.target.value)}
-            className="input"
+            className="input text-base h-12 px-4"
             maxLength={10}
           />
           {errors.birthDate && <p className="text-sm text-red-600">{errors.birthDate.message}</p>}
@@ -422,7 +462,7 @@ export function RegistroNuevo() {
             id="gender"
             value={watch('gender') || ''}
             onChange={(e) => setValue('gender', e.target.value)}
-            className="input"
+            className="input text-base h-12 px-4"
           >
             <option value="">Seleccionar sexo</option>
             <option value="M">Masculino</option>
@@ -441,7 +481,7 @@ export function RegistroNuevo() {
             id="healthInsurance"
             value={watch('healthInsurance') || ''}
             onChange={(e) => setValue('healthInsurance', e.target.value)}
-            className="input"
+            className="input text-base h-12 px-4"
           >
             <option value="">Seleccionar previsión</option>
             <option value="fonasa">FONASA</option>
@@ -463,7 +503,7 @@ export function RegistroNuevo() {
             value={watch('phone') || ''}
             onChange={(e) => setValue('phone', e.target.value)}
             placeholder="+56 9 1234 5678"
-            className="input"
+            className="input text-base h-12 px-4"
           />
           {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
         </div>
@@ -479,7 +519,7 @@ export function RegistroNuevo() {
             value={watch('email') || ''}
             onChange={(e) => setValue('email', e.target.value)}
             placeholder="paciente@ejemplo.cl"
-            className="input"
+            className="input text-base h-12 px-4"
           />
           {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
         </div>
@@ -488,143 +528,338 @@ export function RegistroNuevo() {
   );
 
   const renderDiagnosisStep = () => (
-    <div className="grid grid-cols-3 gap-6">
+    <div className="space-y-6">
       {/* Motivo de Consulta */}
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
+        <label className="block text-base font-bold text-gray-700 mb-3">
           Motivo de Consulta *
         </label>
         <textarea
           value={watch('motivo_consulta') || ''}
           onChange={(e) => setValue('motivo_consulta', e.target.value)}
           placeholder="Describa el motivo de la consulta..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
+          className="input min-h-[150px] resize-y w-full text-base p-4"
+          rows={6}
         />
         {errors.motivo_consulta && (
-          <p className="mt-1 text-sm text-red-600">{errors.motivo_consulta.message}</p>
+          <p className="mt-2 text-sm text-red-600">{errors.motivo_consulta.message}</p>
         )}
       </div>
 
       {/* Condición Clínica */}
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
+        <label className="block text-base font-bold text-gray-700 mb-3">
           Condición Clínica *
         </label>
         <textarea
           value={watch('condicion_clinica') || ''}
           onChange={(e) => setValue('condicion_clinica', e.target.value)}
           placeholder="Describa la condición clínica actual..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
+          className="input min-h-[150px] resize-y w-full text-base p-4"
+          rows={6}
         />
         {errors.condicion_clinica && (
-          <p className="mt-1 text-sm text-red-600">{errors.condicion_clinica.message}</p>
+          <p className="mt-2 text-sm text-red-600">{errors.condicion_clinica.message}</p>
         )}
       </div>
 
       {/* Anamnesis */}
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
+        <label className="block text-base font-bold text-gray-700 mb-3">
           Anamnesis *
         </label>
         <textarea
           value={watch('anamnesis') || ''}
           onChange={(e) => setValue('anamnesis', e.target.value)}
           placeholder="Historia clínica del paciente..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
+          className="input min-h-[150px] resize-y w-full text-base p-4"
+          rows={6}
         />
         {errors.anamnesis && (
-          <p className="mt-1 text-sm text-red-600">{errors.anamnesis.message}</p>
+          <p className="mt-2 text-sm text-red-600">{errors.anamnesis.message}</p>
         )}
       </div>
 
       {/* Signos Vitales */}
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
+        <label className="block text-base font-bold text-gray-700 mb-4">
           Signos Vitales
         </label>
-        <textarea
-          value={watch('signos_vitales') || ''}
-          onChange={(e) => setValue('signos_vitales', e.target.value)}
-          placeholder="Presión arterial, frecuencia cardíaca, temperatura, etc..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Presión Arterial Sistólica */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Presión Arterial Sistólica *
+            </label>
+            <input
+              type="number"
+              value={watch('presion_sistolica') ?? ''}
+              onChange={(e) => setValue('presion_sistolica', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+              placeholder="120"
+              className="input text-base h-12 px-4"
+            />
+            {errors.presion_sistolica && (
+              <p className="mt-1 text-sm text-red-600">{errors.presion_sistolica.message}</p>
+            )}
+          </div>
+
+          {/* Presión Arterial Diastólica */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Presión Arterial Diastólica *
+            </label>
+            <input
+              type="number"
+              value={watch('presion_diastolica') ?? ''}
+              onChange={(e) => setValue('presion_diastolica', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+              placeholder="80"
+              className="input text-base h-12 px-4"
+            />
+            {errors.presion_diastolica && (
+              <p className="mt-1 text-sm text-red-600">{errors.presion_diastolica.message}</p>
+            )}
+          </div>
+
+          {/* Presión Arterial Media */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Presión Arterial Media *
+            </label>
+            <input
+              type="number"
+              value={watch('presion_media') ?? ''}
+              onChange={(e) => setValue('presion_media', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+              placeholder="93"
+              className="input text-base h-12 px-4"
+            />
+            {errors.presion_media && (
+              <p className="mt-1 text-sm text-red-600">{errors.presion_media.message}</p>
+            )}
+          </div>
+
+          {/* Temperatura en °C */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Temperatura en °C *
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              value={watch('temperatura') ?? ''}
+              onChange={(e) => setValue('temperatura', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+              placeholder="36.5"
+              className="input text-base h-12 px-4"
+            />
+            {errors.temperatura && (
+              <p className="mt-1 text-sm text-red-600">{errors.temperatura.message}</p>
+            )}
+          </div>
+
+          {/* Saturación Oxígeno */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Saturación Oxígeno (%) *
+            </label>
+            <input
+              type="number"
+              value={watch('saturacion_oxigeno') ?? ''}
+              onChange={(e) => setValue('saturacion_oxigeno', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+              placeholder="98"
+              className="input text-base h-12 px-4"
+            />
+            {errors.saturacion_oxigeno && (
+              <p className="mt-1 text-sm text-red-600">{errors.saturacion_oxigeno.message}</p>
+            )}
+          </div>
+
+          {/* Frecuencia Cardíaca */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Frecuencia Cardíaca (lpm) *
+            </label>
+            <input
+              type="number"
+              value={watch('frecuencia_cardiaca') ?? ''}
+              onChange={(e) => setValue('frecuencia_cardiaca', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+              placeholder="72"
+              className="input text-base h-12 px-4"
+            />
+            {errors.frecuencia_cardiaca && (
+              <p className="mt-1 text-sm text-red-600">{errors.frecuencia_cardiaca.message}</p>
+            )}
+          </div>
+
+          {/* Frecuencia Respiratoria */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Frecuencia Respiratoria (rpm)
+            </label>
+            <input
+              type="number"
+              value={watch('frecuencia_respiratoria') || ''}
+              onChange={(e) => setValue('frecuencia_respiratoria', e.target.value ? Number(e.target.value) : null)}
+              placeholder="16"
+              className="input text-base h-12 px-4"
+            />
+          </div>
+
+          {/* Tipo de Cama */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tipo de Cama
+            </label>
+            <input
+              type="text"
+              value={watch('tipo_cama') || ''}
+              onChange={(e) => setValue('tipo_cama', e.target.value)}
+              placeholder="Ej: UCI, UTI, etc."
+              className="input text-base h-12 px-4"
+            />
+          </div>
+
+          {/* Glasgow */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Glasgow *
+            </label>
+            <input
+              type="number"
+              min="3"
+              max="15"
+              value={watch('glasgow') ?? ''}
+              onChange={(e) => setValue('glasgow', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+              placeholder="15"
+              className="input text-base h-12 px-4"
+            />
+            {errors.glasgow && (
+              <p className="mt-1 text-sm text-red-600">{errors.glasgow.message}</p>
+            )}
+          </div>
+
+          {/* FIO2 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              FIO2 (%)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={watch('fio2') || ''}
+              onChange={(e) => setValue('fio2', e.target.value ? Number(e.target.value) : null)}
+              placeholder="21"
+              className="input text-base h-12 px-4"
+            />
+          </div>
+
+          {/* FIO2 > o igual a 50% */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              FIO2 ≥ 50%
+            </label>
+            <select
+              value={watch('fio2_mayor_igual_50') === true ? 'true' : watch('fio2_mayor_igual_50') === false ? 'false' : ''}
+              onChange={(e) => setValue('fio2_mayor_igual_50', e.target.value === 'true' ? true : e.target.value === 'false' ? false : null)}
+              className="input text-base h-12 px-4"
+            >
+              <option value="">Seleccionar</option>
+              <option value="true">Sí</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Exámenes */}
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
+        <label className="block text-base font-bold text-gray-700 mb-3">
           Exámenes
         </label>
         <textarea
           value={watch('examenes') || ''}
           onChange={(e) => setValue('examenes', e.target.value)}
           placeholder="Exámenes físicos realizados..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
+          className="input min-h-[120px] resize-y w-full text-base p-4"
+          rows={5}
         />
       </div>
 
       {/* Laboratorios */}
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
+        <label className="block text-base font-bold text-gray-700 mb-3">
           Laboratorios
         </label>
         <textarea
           value={watch('laboratorios') || ''}
           onChange={(e) => setValue('laboratorios', e.target.value)}
           placeholder="Resultados de laboratorio..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
+          className="input min-h-[120px] resize-y w-full text-base p-4"
+          rows={5}
         />
       </div>
 
       {/* Imágenes */}
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
+        <label className="block text-base font-bold text-gray-700 mb-3">
           Imágenes
         </label>
         <textarea
           value={watch('imagenes') || ''}
           onChange={(e) => setValue('imagenes', e.target.value)}
           placeholder="Radiografías, ecografías, tomografías, etc..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
+          className="input min-h-[120px] resize-y w-full text-base p-4"
+          rows={5}
         />
       </div>
 
       {/* Diagnóstico */}
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
+        <label className="block text-base font-bold text-gray-700 mb-3">
           Diagnóstico *
         </label>
         <textarea
           value={watch('diagnostico') || ''}
           onChange={(e) => setValue('diagnostico', e.target.value)}
           placeholder="Diagnóstico final..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
+          className="input min-h-[150px] resize-y w-full text-base p-4"
+          rows={6}
         />
         {errors.diagnostico && (
-          <p className="mt-1 text-sm text-red-600">{errors.diagnostico.message}</p>
+          <p className="mt-2 text-sm text-red-600">{errors.diagnostico.message}</p>
         )}
       </div>
 
       {/* Triage */}
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
-          Triage
+      <div className="space-y-2">
+        <label htmlFor="triage" className="block text-base font-bold text-gray-700 mb-3">
+          Triage *
         </label>
-        <textarea
-          value={watch('triage') || ''}
-          onChange={(e) => setValue('triage', e.target.value)}
-          placeholder="Clasificación de triage..."
-          className="input min-h-[80px] resize-y w-full"
-          rows={3}
-        />
+        <div className="flex gap-0 rounded-lg overflow-hidden border border-gray-300">
+          {[1, 2, 3, 4, 5].map((value) => {
+            const isSelected = watch('triage') === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setValue('triage', value, { shouldValidate: true })}
+                className={`flex-1 py-4 px-2 text-center font-semibold text-lg transition-all ${
+                  isSelected
+                    ? 'bg-gray-800 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                } ${
+                  value === 1 ? 'rounded-l-lg' : ''
+                } ${
+                  value === 5 ? 'rounded-r-lg' : ''
+                } border-r border-gray-300 last:border-r-0`}
+              >
+                {value}
+              </button>
+            );
+          })}
+        </div>
+        {errors.triage && (
+          <p className="text-sm text-red-600">{errors.triage.message}</p>
+        )}
       </div>
     </div>
   );
@@ -898,7 +1133,7 @@ export function RegistroNuevo() {
               value={watch('bloodPressure') || ''}
               onChange={(e) => setValue('bloodPressure', e.target.value)}
               placeholder="120/80"
-              className="input"
+              className="input text-base h-12 px-4"
             />
             {errors.bloodPressure && <p className="text-sm text-red-600">{errors.bloodPressure.message}</p>}
           </div>
@@ -914,7 +1149,7 @@ export function RegistroNuevo() {
               value={watch('heartRate') || ''}
               onChange={(e) => setValue('heartRate', e.target.value)}
               placeholder="72"
-              className="input"
+              className="input text-base h-12 px-4"
             />
             {errors.heartRate && <p className="text-sm text-red-600">{errors.heartRate.message}</p>}
           </div>
@@ -930,7 +1165,7 @@ export function RegistroNuevo() {
               value={watch('respiratoryRate') || ''}
               onChange={(e) => setValue('respiratoryRate', e.target.value)}
               placeholder="16"
-              className="input"
+              className="input text-base h-12 px-4"
             />
             {errors.respiratoryRate && <p className="text-sm text-red-600">{errors.respiratoryRate.message}</p>}
           </div>
@@ -947,7 +1182,7 @@ export function RegistroNuevo() {
               value={watch('temperature') || ''}
               onChange={(e) => setValue('temperature', e.target.value)}
               placeholder="36.5"
-              className="input"
+              className="input text-base h-12 px-4"
             />
             {errors.temperature && <p className="text-sm text-red-600">{errors.temperature.message}</p>}
           </div>
@@ -963,7 +1198,7 @@ export function RegistroNuevo() {
               value={watch('oxygenSaturation') || ''}
               onChange={(e) => setValue('oxygenSaturation', e.target.value)}
               placeholder="98"
-              className="input"
+              className="input text-base h-12 px-4"
             />
             {errors.oxygenSaturation && <p className="text-sm text-red-600">{errors.oxygenSaturation.message}</p>}
           </div>
@@ -1264,34 +1499,22 @@ export function RegistroNuevo() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {currentStep > 1 && (
-              <button
-                type="button"
-                onClick={goBack}
-                className="btn btn-outline"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Anterior
-              </button>
-            )}
-            
+        <div className="flex items-center justify-center gap-4">
+          {currentStep > 1 && (
             <button
               type="button"
-              onClick={saveDraft}
-              disabled={loading}
+              onClick={goBack}
               className="btn btn-outline"
             >
-              <Save className="w-4 h-4 mr-2" />
-              {loading ? 'Guardando...' : 'Guardar borrador'}
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Anterior
             </button>
-          </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary"
+            className="btn btn-primary text-lg px-8 py-4 font-semibold shadow-lg hover:shadow-xl hover:bg-primary/90 transition-all"
           >
           {currentStep === 2 ? (
             loading ? (
