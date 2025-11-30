@@ -149,6 +149,22 @@ export function ResultadoEvaluacion() {
       return;
     }
 
+    // Validar que tenemos todos los datos necesarios
+    if (!evaluation?.id_episodio) {
+      alert("Error: No se encontró el ID del episodio. Por favor, recargue la página.");
+      return;
+    }
+
+    if (!evaluation?.id_eval_ia) {
+      alert("Error: No se encontró el ID de la evaluación IA. Por favor, recargue la página.");
+      return;
+    }
+
+    if (!userId) {
+      alert("Error: No se encontró el ID del usuario. Por favor, inicie sesión nuevamente.");
+      return;
+    }
+
     const payload = {
       id_episodio: evaluation.id_episodio,
       id_eval_ia: evaluation.id_eval_ia,
@@ -159,14 +175,30 @@ export function ResultadoEvaluacion() {
       sugerencia_ia: evaluation.pertinencia_ia || null,
     };
 
+    console.log("📤 Enviando evaluación médica:", payload);
+    console.log("📋 Datos de evaluación disponibles:", {
+      id_episodio: evaluation.id_episodio,
+      id_eval_ia: evaluation.id_eval_ia,
+      userId: userId,
+      pertinencia_ia: evaluation.pertinencia_ia,
+    });
+
     try {
       const respuesta = await apiClient.createEvaluacionLeyUrgencia(payload);
-      console.log("Evaluación guardada:", respuesta);
+      console.log("✅ Evaluación guardada:", respuesta);
       alert("Evaluación guardada correctamente.");
       navigate(`/`)
     } catch (error) {
-      console.error("Error al guardar la evaluación:", error);
-      alert("Ocurrió un error al guardar la evaluación. Intente nuevamente.");
+      console.error("❌ Error al guardar la evaluación:", error);
+      console.error("📋 Payload enviado:", payload);
+      console.error("🔍 Detalles del error:", {
+        status: error.status,
+        message: error.message,
+      });
+      
+      // Mostrar mensaje de error más descriptivo
+      const errorMessage = error.message || 'Error desconocido';
+      alert(`Error al guardar la evaluación: ${errorMessage}\n\nPor favor, verifique que todos los datos sean correctos e intente nuevamente.`);
     }
   };
 

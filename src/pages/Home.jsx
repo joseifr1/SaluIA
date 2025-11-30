@@ -1,226 +1,76 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, FileText, BarChart3, Clock, TrendingUp, Users, Calendar } from 'lucide-react';
-import { PhoneTest } from '../components/PhoneTest.jsx';
+import { Plus, FileText, BarChart3, ArrowRight } from 'lucide-react';
 
 export function Home() {
-  // Mock data for recent episodes
-  const recentEpisodes = [
-    {
-      id: 1,
-      patient: 'María González P.',
-      date: '2024-01-15',
-      diagnosis: 'Hipertensión arterial',
-      status: 'completed',
-      result: 'applies',
-    },
-    {
-      id: 2,
-      patient: 'Juan Carlos M.',
-      date: '2024-01-14',
-      diagnosis: 'Diabetes tipo 2',
-      status: 'evaluating',
-      result: null,
-    },
-    {
-      id: 3,
-      patient: 'Ana López R.',
-      date: '2024-01-13',
-      diagnosis: 'Insuficiencia cardíaca',
-      status: 'completed',
-      result: 'not_applies',
-    },
-  ];
-
-  // Mock stats
-  const stats = [
-    { label: 'Registros este mes', value: '24', icon: FileText, change: '+12%' },
-    { label: 'Evaluaciones pendientes', value: '3', icon: Clock, change: '-8%' },
-    { label: 'Tasa de cumplimiento', value: '87%', icon: TrendingUp, change: '+5%' },
-    { label: 'Pacientes únicos', value: '18', icon: Users, change: '+3%' },
-  ];
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'completed':
-        return <span className="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Completado</span>;
-      case 'evaluating':
-        return <span className="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Evaluando</span>;
-      default:
-        return <span className="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Borrador</span>;
-    }
-  };
-
-  const getResultBadge = (result) => {
-    if (!result) return null;
-
-    switch (result) {
-      case 'applies':
-        return <span className="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Aplica</span>;
-      case 'not_applies':
-        return <span className="inline-flex px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">No aplica</span>;
-      case 'uncertain':
-        return <span className="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Incierto</span>;
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div className="space-y-8">
+    <div className="max-w-7xl mx-auto space-y-8">
       {/* Welcome header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Panel de Control</h1>
-        <p className="mt-2 text-gray-600">
-          Bienvenido al sistema de registro y evaluación médica
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900 mb-3">Panel de Control</h1>
+        <p className="text-lg text-gray-600">
+          Sistema de registro y evaluación médica
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.label} className="card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-                    <span className={`text-sm font-medium ${
-                      stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {stat.change}
-                    </span>
-                  </div>
-                </div>
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-primary" />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Quick actions */}
+      {/* All actions in one row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Nuevo Registro */}
         <Link
           to="/registros/nuevo"
-          className="card hover:shadow-lg transition-shadow group"
+          className="group"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center group-hover:bg-primary/90 transition-colors">
-              <Plus className="w-6 h-6 text-white" />
+          <div className="card bg-gradient-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] border-0 h-full">
+            <div className="flex flex-col items-center text-center p-6 h-full">
+              <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Plus className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-3">Nuevo Registro</h2>
+              <p className="text-white/90 text-sm leading-relaxed mb-4">
+                Registrar paciente y diagnóstico médico para obtener una recomendación de la IA sobre pertinencia de la ley de urgencias
+              </p>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Nuevo Registro</h3>
-              <p className="text-gray-600">Crear un nuevo episodio médico</p>
-            </div>
-          </div>
-          <div className="mt-4 text-sm text-gray-500">
-            Presione <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Alt+N</kbd> para acceder rápidamente
           </div>
         </Link>
 
+        {/* Mis Registros */}
         <Link
           to="/registros"
-          className="card hover:shadow-lg transition-shadow group"
+          className="card hover:shadow-xl transition-all duration-300 hover:scale-[1.02] group border-2 border-gray-200 hover:border-primary/30 h-full"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center group-hover:bg-secondary/90 transition-colors">
-              <FileText className="w-6 h-6 text-white" />
+          <div className="flex flex-col p-6 h-full">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                <FileText className="w-8 h-8 text-blue-600" />
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Mis Registros</h3>
-              <p className="text-gray-600">Ver historial de episodios</p>
-            </div>
-          </div>
-          <div className="mt-4 text-sm text-gray-500">
-            Presione <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Alt+H</kbd> para acceder rápidamente
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">Mis Registros</h3>
+            <p className="text-gray-600 text-sm leading-relaxed mb-4">
+              Revisa el estado de los registros médicos hechos
+            </p>
           </div>
         </Link>
 
+        {/* Análisis */}
         <Link
           to="/analitica"
-          className="card hover:shadow-lg transition-shadow group"
+          className="card hover:shadow-xl transition-all duration-300 hover:scale-[1.02] group border-2 border-gray-200 hover:border-primary/30 h-full"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-accent rounded-lg flex items-center justify-center group-hover:bg-accent/90 transition-colors">
-              <BarChart3 className="w-6 h-6 text-white" />
+          <div className="flex flex-col p-6 h-full">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                <BarChart3 className="w-8 h-8 text-green-600" />
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Análisis</h3>
-              <p className="text-gray-600">Estadísticas y tendencias</p>
-            </div>
-          </div>
-          <div className="mt-4 text-sm text-gray-500">
-            Presione <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Alt+A</kbd> para acceder rápidamente
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">Análisis</h3>
+            <p className="text-gray-600 text-sm leading-relaxed mb-4">
+              Ver estadísticas y tendencias del sistema sobre todas las evaluaciones hechas por la IA, junto con la decisión médica y de la aseguradora
+            </p>
           </div>
         </Link>
       </div>
-
-      {/* Recent episodes */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Últimos Episodios</h2>
-          <Link
-            to="/registros"
-            className="text-sm text-primary hover:text-primary/80"
-          >
-            Ver todos
-          </Link>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Paciente
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fecha
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Diagnóstico
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Resultado
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {recentEpisodes.map((episode) => (
-                <tr key={episode.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {episode.patient}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      {new Date(episode.date).toLocaleDateString('es-CL')}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {episode.diagnosis}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(episode.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getResultBadge(episode.result)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
     </div>
   );
 }
