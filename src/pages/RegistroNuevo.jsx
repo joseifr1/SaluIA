@@ -43,6 +43,7 @@ export function RegistroNuevo() {
   const [selectedImages, setSelectedImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [observacionesMedico, setObservacionesMedico] = useState('');
+  const [rutValidation, setRutValidation] = useState({ isValid: null, message: '' });
   const navigate = useNavigate();
 
   const currentStepData = STEPS[currentStep - 1];
@@ -82,6 +83,238 @@ export function RegistroNuevo() {
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
     return dateString;
+  };
+
+  // Función para calcular el dígito verificador del RUT (solo para validación)
+  const calculateRUTVerifier = (rutBody) => {
+    if (!rutBody || rutBody.length === 0) return '';
+    
+    let sum = 0;
+    let multiplier = 2;
+    
+    // Calcular desde el final hacia el inicio
+    for (let i = rutBody.length - 1; i >= 0; i--) {
+      sum += parseInt(rutBody[i]) * multiplier;
+      multiplier = multiplier === 7 ? 2 : multiplier + 1;
+    }
+    
+    const remainder = sum % 11;
+    const calculatedDV = remainder === 0 ? '0' : remainder === 1 ? 'k' : (11 - remainder).toString();
+    
+    return calculatedDV;
+  };
+
+  // Función para validar si el dígito verificador es correcto
+  const isValidRUTVerifier = (rut) => {
+    if (!rut || rut.length < 8) return null; // No validar si es muy corto
+    
+    // Remover puntos y guión, solo números y K/k
+    const cleanValue = rut.replace(/[^0-9kK]/g, '');
+    
+    if (cleanValue.length < 8) return null;
+    
+    // Separar cuerpo y dígito verificador
+    let rutBody = '';
+    let verifier = '';
+    
+    if (cleanValue.slice(-1).toLowerCase() === 'k') {
+      rutBody = cleanValue.slice(0, -1);
+      verifier = 'k';
+    } else if (cleanValue.length >= 8) {
+      // Tomar los últimos 1-2 caracteres como DV
+      // Normalmente es 1, pero puede ser 2 en casos especiales
+      if (cleanValue.length === 9) {
+        rutBody = cleanValue.slice(0, 8);
+        verifier = cleanValue.slice(8, 9);
+      } else if (cleanValue.length === 8) {
+        rutBody = cleanValue.slice(0, 7);
+        verifier = cleanValue.slice(7, 8);
+      } else {
+        return null;
+      }
+    } else {
+      return null;
+    }
+    
+    if (!rutBody || !verifier) return null;
+    
+    // Calcular el DV esperado
+    const calculatedDV = calculateRUTVerifier(rutBody);
+    
+    // Comparar con el DV ingresado
+    return verifier.toLowerCase() === calculatedDV.toLowerCase();
+  };
+
+  // Función para formatear RUT con puntos y guión (sin calcular DV automáticamente)
+  const formatRUT = (value) => {
+    if (!value) return '';
+    
+    // Remover todo excepto números y K/k
+    let cleanValue = value.replace(/[^0-9kK]/g, '');
+    
+    if (cleanValue.length === 0) return '';
+    
+    // Separar cuerpo y dígito verificador
+    let rutBody = '';
+    let verifier = '';
+    
+    // Si el último carácter es K o k, es el dígito verificador
+    if (cleanValue.slice(-1).toLowerCase() === 'k') {
+      rutBody = cleanValue.slice(0, -1);
+      verifier = 'k';
+    } else if (cleanValue.length >= 9) {
+      // Si tiene 9 o más dígitos, los primeros 8 son el cuerpo y el último es el DV
+      rutBody = cleanValue.slice(0, 8);
+      verifier = cleanValue.slice(8, 9);
+    } else if (cleanValue.length === 8) {
+      // Si tiene 8 dígitos, los primeros 7 son el cuerpo y el último es el DV
+      rutBody = cleanValue.slice(0, 7);
+      verifier = cleanValue.slice(7, 8);
+    } else {
+      // Menos de 8 dígitos, solo mostrar el cuerpo sin DV
+      rutBody = cleanValue;
+    }
+    
+    // Formatear el cuerpo con puntos cada 3 dígitos desde la derecha
+    let formatted = '';
+    if (rutBody.length > 0) {
+      const reversed = rutBody.split('').reverse().join('');
+      const chunks = [];
+      for (let i = 0; i < reversed.length; i += 3) {
+        chunks.push(reversed.slice(i, i + 3));
+      }
+      formatted = chunks.join('.').split('').reverse().join('');
+    }
+    
+    // Agregar el dígito verificador con guión si existe
+    if (verifier) {
+      formatted += '-' + verifier.toLowerCase();
+    }
+    
+    return formatted;
+  };
+
+  // Handler para cambios en el campo RUT
+  const handleRUTChange = (e) => {
+    const inputValue = e.target.value;
+    
+    // Si el usuario está borrando y el valor está vacío, limpiar el campo
+    if (!inputValue || inputValue.trim() === '') {
+      setValue('rut', '', { shouldValidate: true });
+      setRutValidation({ isValid: null, message: '' });
+      return;
+    }
+    
+    // Remover todo excepto números y K/k (esto maneja tanto entrada nueva como edición de valor formateado)
+    const cleanValue = inputValue.replace(/[^0-9kK]/g, '');
+    
+    // Limitar a 10 caracteres máximo (8 dígitos cuerpo + 2 para DV)
+    const limited = cleanValue.slice(0, 10);
+    
+    // Formatear el RUT (sin calcular DV automáticamente)
+    const formatted = formatRUT(limited);
+    
+    // Validar el dígito verificador si el RUT está completo
+    const isValid = isValidRUTVerifier(formatted);
+    if (isValid !== null) {
+      if (!isValid) {
+        setRutValidation({ 
+          isValid: false, 
+          message: 'El dígito verificador es incorrecto' 
+        });
+      } else {
+        setRutValidation({ 
+          isValid: true, 
+          message: '' 
+        });
+      }
+    } else {
+      setRutValidation({ isValid: null, message: '' });
+    }
+    
+    // Guardar el valor formateado en el formulario
+    setValue('rut', formatted, { shouldValidate: true });
+  };
+
+  // Función para normalizar teléfono (sin espacios, para validación): +56912345678
+  const normalizePhone = (value) => {
+    if (!value) return '';
+    
+    // Remover todo excepto números y el signo +
+    let cleanValue = value.replace(/[^0-9+]/g, '');
+    
+    // Extraer todos los dígitos
+    const allDigits = cleanValue.replace(/[^0-9]/g, '');
+    
+    // Si no hay dígitos, retornar vacío
+    if (allDigits.length === 0) return '';
+    
+    // Determinar los dígitos del número de teléfono
+    let phoneDigits = '';
+    
+    if (allDigits.startsWith('56') && allDigits.length > 2) {
+      // El usuario escribió 56 seguido del número, tomar solo los dígitos después de 56
+      phoneDigits = allDigits.substring(2);
+    } else if (allDigits.startsWith('56') && allDigits.length === 2) {
+      // Solo escribió "56", retornar +56
+      return '+56';
+    } else {
+      // El usuario está escribiendo directamente el número (9 dígitos)
+      phoneDigits = allDigits;
+    }
+    
+    // Limitar a 9 dígitos (formato chileno)
+    const limitedDigits = phoneDigits.slice(0, 9);
+    
+    // Retornar en formato normalizado: +56 + 9 dígitos sin espacios
+    return '+56' + limitedDigits;
+  };
+
+  // Función para formatear teléfono para mostrar (con espacios): +56 9 1234 5678
+  const formatPhoneDisplay = (value) => {
+    if (!value) return '';
+    
+    // Normalizar primero para obtener el formato base
+    const normalized = normalizePhone(value);
+    
+    if (!normalized || normalized === '+56') return normalized;
+    
+    // Extraer los 9 dígitos después de +56
+    const digits = normalized.replace(/[^0-9]/g, '').substring(2);
+    
+    if (digits.length === 0) return '+56';
+    
+    // Formatear como +56 9 1234 5678
+    let formatted = '+56';
+    if (digits.length > 0) {
+      formatted += ' ' + digits[0];
+    }
+    if (digits.length > 1) {
+      formatted += ' ' + digits.slice(1, 5);
+    }
+    if (digits.length > 5) {
+      formatted += ' ' + digits.slice(5, 9);
+    }
+    
+    return formatted;
+  };
+
+  // Handler para cambios en el campo teléfono
+  const handlePhoneChange = (e) => {
+    const inputValue = e.target.value;
+    
+    // Si el usuario está borrando y el valor está vacío, limpiar el campo
+    if (!inputValue || inputValue.trim() === '') {
+      setValue('phone', '', { shouldValidate: true });
+      return;
+    }
+    
+    // Normalizar el teléfono (sin espacios) para guardar en el formulario
+    // Esto asegura que pase la validación que espera +56 seguido de 9 dígitos sin espacios
+    const normalized = normalizePhone(inputValue);
+    
+    // Guardar el valor normalizado (sin espacios) en el formulario
+    setValue('phone', normalized, { shouldValidate: true });
   };
 
   const handleDateChange = (value) => {
@@ -164,8 +397,8 @@ export function RegistroNuevo() {
     if (data.fio2) {
       signos.push(`FIO2: ${data.fio2}%`);
     }
-    if (data.fio2_mayor_igual_50 !== null && data.fio2_mayor_igual_50 !== undefined) {
-      signos.push(`FIO2 ≥ 50%: ${data.fio2_mayor_igual_50 ? 'Sí' : 'No'}`);
+    if (data.ges !== null && data.ges !== undefined) {
+      signos.push(`GES: ${data.ges ? 'Sí' : 'No'}`);
     }
     
     return signos.join(', ');
@@ -186,7 +419,7 @@ export function RegistroNuevo() {
         condicion_clinica: data.condicion_clinica || '',
         anamnesis: data.anamnesis || '',
         triage: data.triage ? String(data.triage) : '',
-        signos_vitales: signosVitalesTexto || '',
+        signos_vitales: signosVitalesTexto || '', // Incluye tipo_cama y ges dentro del string
         examenes: data.examenes || '',
         laboratorios: data.laboratorios || '',
         imagenes: data.imagenes || '',
@@ -397,11 +630,21 @@ export function RegistroNuevo() {
             id="rut"
             type="text"
             value={watch('rut') || ''}
-            onChange={(e) => setValue('rut', e.target.value)}
-            placeholder="12.345.678-9"
-            className="input text-base h-12 px-4"
+            onChange={handleRUTChange}
+            placeholder="Ingrese solo números (ej: 207067822)"
+            className={`input text-base h-12 px-4 ${
+              rutValidation.isValid === false 
+                ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
+                : rutValidation.isValid === true
+                ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
+                : ''
+            }`}
+            maxLength={12}
           />
           {errors.rut && <p className="text-sm text-red-600">{errors.rut.message}</p>}
+          {rutValidation.isValid === false && !errors.rut && (
+            <p className="text-sm text-red-600">{rutValidation.message}</p>
+          )}
         </div>
 
         {/* Nombres */}
@@ -500,9 +743,9 @@ export function RegistroNuevo() {
           <input
             id="phone"
             type="tel"
-            value={watch('phone') || ''}
-            onChange={(e) => setValue('phone', e.target.value)}
-            placeholder="+56 9 1234 5678"
+            value={formatPhoneDisplay(watch('phone') || '')}
+            onChange={handlePhoneChange}
+            placeholder="Ingrese solo números (ej: 912345678)"
             className="input text-base h-12 px-4"
           />
           {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
@@ -529,6 +772,61 @@ export function RegistroNuevo() {
 
   const renderDiagnosisStep = () => (
     <div className="space-y-6">
+      {/* Triage */}
+      <div className="space-y-2">
+        <label htmlFor="triage" className="block text-base font-bold text-gray-700 mb-3">
+          Triage *
+        </label>
+        <div className="flex gap-0 rounded-lg overflow-hidden border border-gray-300">
+          {[
+            { value: 1, label: 'RESUCITACIÓN', color: 'red' },
+            { value: 2, label: 'EMERGENCIA', color: 'orange' },
+            { value: 3, label: 'URGENCIA', color: 'yellow' },
+            { value: 4, label: 'URGENCIA MENOR', color: 'green' },
+            { value: 5, label: 'SIN URGENCIA', color: 'blue' }
+          ].map(({ value, label, color }) => {
+            const isSelected = watch('triage') === value;
+            const colorClasses = {
+              red: isSelected 
+                ? 'bg-red-600 text-white' 
+                : 'bg-red-50 text-red-700 hover:bg-red-100 border-red-200',
+              orange: isSelected 
+                ? 'bg-orange-500 text-white' 
+                : 'bg-orange-50 text-orange-700 hover:bg-orange-100 border-orange-200',
+              yellow: isSelected 
+                ? 'bg-yellow-400 text-gray-900' 
+                : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border-yellow-200',
+              green: isSelected 
+                ? 'bg-green-500 text-white' 
+                : 'bg-green-50 text-green-700 hover:bg-green-100 border-green-200',
+              blue: isSelected 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200'
+            };
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setValue('triage', value, { shouldValidate: true })}
+                className={`flex-1 py-4 px-2 text-center font-semibold text-sm transition-all ${
+                  colorClasses[color]
+                } ${
+                  value === 1 ? 'rounded-l-lg' : ''
+                } ${
+                  value === 5 ? 'rounded-r-lg' : ''
+                } border-r border-gray-300 last:border-r-0`}
+              >
+                <div className="font-bold text-lg mb-1">{value}</div>
+                <div className="text-xs">{label}</div>
+              </button>
+            );
+          })}
+        </div>
+        {errors.triage && (
+          <p className="text-sm text-red-600">{errors.triage.message}</p>
+        )}
+      </div>
+
       {/* Motivo de Consulta */}
       <div>
         <label className="block text-base font-bold text-gray-700 mb-3">
@@ -585,187 +883,200 @@ export function RegistroNuevo() {
         <label className="block text-base font-bold text-gray-700 mb-4">
           Signos Vitales
         </label>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Presión Arterial Sistólica */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Presión Arterial Sistólica *
-            </label>
-            <input
-              type="number"
-              value={watch('presion_sistolica') ?? ''}
-              onChange={(e) => setValue('presion_sistolica', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
-              placeholder="120"
-              className="input text-base h-12 px-4"
-            />
-            {errors.presion_sistolica && (
-              <p className="mt-1 text-sm text-red-600">{errors.presion_sistolica.message}</p>
-            )}
-          </div>
+        
+        {/* Signos Vitales Principales (Obligatorios) */}
+        <div className="mb-6">
+          <h4 className="text-sm font-semibold text-gray-600 mb-3">Signos Vitales Principales *</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+            {/* Temperatura Corporal */}
+            <div className="flex flex-col h-full">
+              <label className="block text-sm font-medium text-gray-700 mb-2 h-[40px] flex items-start">
+                Temperatura Corporal (°C) *
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={watch('temperatura') ?? ''}
+                onChange={(e) => setValue('temperatura', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+                placeholder="36.5"
+                className="input text-base h-12 px-4"
+              />
+              {errors.temperatura && (
+                <p className="mt-1 text-sm text-red-600">{errors.temperatura.message}</p>
+              )}
+            </div>
 
-          {/* Presión Arterial Diastólica */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Presión Arterial Diastólica *
-            </label>
-            <input
-              type="number"
-              value={watch('presion_diastolica') ?? ''}
-              onChange={(e) => setValue('presion_diastolica', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
-              placeholder="80"
-              className="input text-base h-12 px-4"
-            />
-            {errors.presion_diastolica && (
-              <p className="mt-1 text-sm text-red-600">{errors.presion_diastolica.message}</p>
-            )}
-          </div>
+            {/* Pulso / Frecuencia Cardíaca */}
+            <div className="flex flex-col h-full">
+              <label className="block text-sm font-medium text-gray-700 mb-2 h-[40px] flex items-start">
+                Pulso (lpm) *
+              </label>
+              <input
+                type="number"
+                value={watch('frecuencia_cardiaca') ?? ''}
+                onChange={(e) => setValue('frecuencia_cardiaca', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+                placeholder="72"
+                className="input text-base h-12 px-2"
+              />
+              {errors.frecuencia_cardiaca && (
+                <p className="mt-1 text-sm text-red-600">{errors.frecuencia_cardiaca.message}</p>
+              )}
+            </div>
 
-          {/* Presión Arterial Media */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Presión Arterial Media *
-            </label>
-            <input
-              type="number"
-              value={watch('presion_media') ?? ''}
-              onChange={(e) => setValue('presion_media', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
-              placeholder="93"
-              className="input text-base h-12 px-4"
-            />
-            {errors.presion_media && (
-              <p className="mt-1 text-sm text-red-600">{errors.presion_media.message}</p>
-            )}
-          </div>
+            {/* Frecuencia Respiratoria */}
+            <div className="flex flex-col h-full">
+              <label className="block text-sm font-medium text-gray-700 mb-2 h-[40px] flex items-start">
+                Frecuencia Respiratoria (rpm) *
+              </label>
+              <input
+                type="number"
+                value={watch('frecuencia_respiratoria') ?? ''}
+                onChange={(e) => setValue('frecuencia_respiratoria', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+                placeholder="16"
+                className="input text-base h-12 px-4"
+              />
+              {errors.frecuencia_respiratoria && (
+                <p className="mt-1 text-sm text-red-600">{errors.frecuencia_respiratoria.message}</p>
+              )}
+            </div>
 
-          {/* Temperatura en °C */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Temperatura en °C *
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              value={watch('temperatura') ?? ''}
-              onChange={(e) => setValue('temperatura', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
-              placeholder="36.5"
-              className="input text-base h-12 px-4"
-            />
-            {errors.temperatura && (
-              <p className="mt-1 text-sm text-red-600">{errors.temperatura.message}</p>
-            )}
+            {/* Presión Arterial Media */}
+            <div className="flex flex-col h-full">
+              <label className="block text-sm font-medium text-gray-700 mb-2 h-[40px] flex items-start">
+                Presión Arterial Media (mmHg) *
+              </label>
+              <input
+                type="number"
+                value={watch('presion_media') ?? ''}
+                onChange={(e) => setValue('presion_media', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
+                placeholder="93"
+                className="input text-base h-12 px-4"
+              />
+              {errors.presion_media && (
+                <p className="mt-1 text-sm text-red-600">{errors.presion_media.message}</p>
+              )}
+            </div>
           </div>
+        </div>
 
-          {/* Saturación Oxígeno */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Saturación Oxígeno (%) *
-            </label>
-            <input
-              type="number"
-              value={watch('saturacion_oxigeno') ?? ''}
-              onChange={(e) => setValue('saturacion_oxigeno', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
-              placeholder="98"
-              className="input text-base h-12 px-4"
-            />
-            {errors.saturacion_oxigeno && (
-              <p className="mt-1 text-sm text-red-600">{errors.saturacion_oxigeno.message}</p>
-            )}
+        {/* Otros Signos Vitales (Opcionales) */}
+        <div>
+          <h4 className="text-sm font-semibold text-gray-600 mb-3">Otros Signos Vitales</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Presión Arterial Sistólica y Diastólica */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Presión Arterial Sistólica (mmHg)
+              </label>
+              <input
+                type="number"
+                value={watch('presion_sistolica') || ''}
+                onChange={(e) => setValue('presion_sistolica', e.target.value ? Number(e.target.value) : null)}
+                placeholder="120"
+                className="input text-base h-12 px-4"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Presión Arterial Diastólica (mmHg)
+              </label>
+              <input
+                type="number"
+                value={watch('presion_diastolica') || ''}
+                onChange={(e) => setValue('presion_diastolica', e.target.value ? Number(e.target.value) : null)}
+                placeholder="80"
+                className="input text-base h-12 px-4"
+              />
+            </div>
+
+            {/* Saturación Oxígeno */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Saturación Oxígeno (%)
+              </label>
+              <input
+                type="number"
+                value={watch('saturacion_oxigeno') || ''}
+                onChange={(e) => setValue('saturacion_oxigeno', e.target.value ? Number(e.target.value) : null)}
+                placeholder="98"
+                className="input text-base h-12 px-4"
+              />
+            </div>
+
+            {/* Glasgow */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Glasgow
+              </label>
+              <input
+                type="number"
+                min="3"
+                max="15"
+                value={watch('glasgow') || ''}
+                onChange={(e) => setValue('glasgow', e.target.value ? Number(e.target.value) : null)}
+                placeholder="15"
+                className="input text-base h-12 px-4"
+              />
+            </div>
+
+            {/* FIO2 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                FIO2 (%)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={watch('fio2') || ''}
+                onChange={(e) => setValue('fio2', e.target.value ? Number(e.target.value) : null)}
+                placeholder="21"
+                className="input text-base h-12 px-4"
+              />
+            </div>
           </div>
+        </div>
 
-          {/* Frecuencia Cardíaca */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Frecuencia Cardíaca (lpm) *
-            </label>
-            <input
-              type="number"
-              value={watch('frecuencia_cardiaca') ?? ''}
-              onChange={(e) => setValue('frecuencia_cardiaca', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
-              placeholder="72"
-              className="input text-base h-12 px-4"
-            />
-            {errors.frecuencia_cardiaca && (
-              <p className="mt-1 text-sm text-red-600">{errors.frecuencia_cardiaca.message}</p>
-            )}
-          </div>
+        {/* Datos Clínicos Administrativos */}
+        <div className="mb-6">
+          <label className="block text-base font-bold text-gray-700 mb-3">Datos Clínicos Administrativos</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Tipo de Cama */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo de Cama *
+              </label>
+              <input
+                type="text"
+                value={watch('tipo_cama') || ''}
+                onChange={(e) => setValue('tipo_cama', e.target.value, { shouldValidate: true })}
+                placeholder="Ej: UCI, UTI, etc."
+                className="input text-base h-12 px-4"
+              />
+              {errors.tipo_cama && (
+                <p className="mt-1 text-sm text-red-600">{errors.tipo_cama.message}</p>
+              )}
+            </div>
 
-          {/* Frecuencia Respiratoria */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Frecuencia Respiratoria (rpm)
-            </label>
-            <input
-              type="number"
-              value={watch('frecuencia_respiratoria') || ''}
-              onChange={(e) => setValue('frecuencia_respiratoria', e.target.value ? Number(e.target.value) : null)}
-              placeholder="16"
-              className="input text-base h-12 px-4"
-            />
-          </div>
-
-          {/* Tipo de Cama */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tipo de Cama
-            </label>
-            <input
-              type="text"
-              value={watch('tipo_cama') || ''}
-              onChange={(e) => setValue('tipo_cama', e.target.value)}
-              placeholder="Ej: UCI, UTI, etc."
-              className="input text-base h-12 px-4"
-            />
-          </div>
-
-          {/* Glasgow */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Glasgow *
-            </label>
-            <input
-              type="number"
-              min="3"
-              max="15"
-              value={watch('glasgow') ?? ''}
-              onChange={(e) => setValue('glasgow', e.target.value ? Number(e.target.value) : undefined, { shouldValidate: true })}
-              placeholder="15"
-              className="input text-base h-12 px-4"
-            />
-            {errors.glasgow && (
-              <p className="mt-1 text-sm text-red-600">{errors.glasgow.message}</p>
-            )}
-          </div>
-
-          {/* FIO2 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              FIO2 (%)
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={watch('fio2') || ''}
-              onChange={(e) => setValue('fio2', e.target.value ? Number(e.target.value) : null)}
-              placeholder="21"
-              className="input text-base h-12 px-4"
-            />
-          </div>
-
-          {/* FIO2 > o igual a 50% */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              FIO2 ≥ 50%
-            </label>
-            <select
-              value={watch('fio2_mayor_igual_50') === true ? 'true' : watch('fio2_mayor_igual_50') === false ? 'false' : ''}
-              onChange={(e) => setValue('fio2_mayor_igual_50', e.target.value === 'true' ? true : e.target.value === 'false' ? false : null)}
-              className="input text-base h-12 px-4"
-            >
-              <option value="">Seleccionar</option>
-              <option value="true">Sí</option>
-              <option value="false">No</option>
-            </select>
+            {/* GES */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                GES *
+              </label>
+              <select
+                value={watch('ges') === true ? 'true' : watch('ges') === false ? 'false' : ''}
+                onChange={(e) => setValue('ges', e.target.value === 'true' ? true : e.target.value === 'false' ? false : undefined, { shouldValidate: true })}
+                className="input text-base h-12 px-4"
+              >
+                <option value="">Seleccionar</option>
+                <option value="true">Sí</option>
+                <option value="false">No</option>
+              </select>
+              {errors.ges && (
+                <p className="mt-1 text-sm text-red-600">{errors.ges.message}</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -829,38 +1140,6 @@ export function RegistroNuevo() {
         )}
       </div>
 
-      {/* Triage */}
-      <div className="space-y-2">
-        <label htmlFor="triage" className="block text-base font-bold text-gray-700 mb-3">
-          Triage *
-        </label>
-        <div className="flex gap-0 rounded-lg overflow-hidden border border-gray-300">
-          {[1, 2, 3, 4, 5].map((value) => {
-            const isSelected = watch('triage') === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setValue('triage', value, { shouldValidate: true })}
-                className={`flex-1 py-4 px-2 text-center font-semibold text-lg transition-all ${
-                  isSelected
-                    ? 'bg-gray-800 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } ${
-                  value === 1 ? 'rounded-l-lg' : ''
-                } ${
-                  value === 5 ? 'rounded-r-lg' : ''
-                } border-r border-gray-300 last:border-r-0`}
-              >
-                {value}
-              </button>
-            );
-          })}
-        </div>
-        {errors.triage && (
-          <p className="text-sm text-red-600">{errors.triage.message}</p>
-        )}
-      </div>
     </div>
   );
 
@@ -972,7 +1251,7 @@ export function RegistroNuevo() {
                   {evaluacionIA.pertinencia_ia ? 'Pertinente' : 'No Pertinente'}
                 </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                 <div>
                   <span className="font-medium text-blue-800">Modelo:</span>
                   <span className="ml-2 text-blue-700">{evaluacionIA.modelo}</span>
@@ -987,6 +1266,17 @@ export function RegistroNuevo() {
                     {new Date(evaluacionIA.fecha_evaluacion).toLocaleDateString()}
                   </span>
                 </div>
+                {evaluacionIA.tiempo_respuesta !== null && evaluacionIA.tiempo_respuesta !== undefined && (
+                  <div>
+                    <span className="font-medium text-blue-800">Tiempo de Respuesta:</span>
+                    <span className="ml-2 text-blue-700">
+                      {typeof evaluacionIA.tiempo_respuesta === 'number' 
+                        ? `${evaluacionIA.tiempo_respuesta.toFixed(2)}s`
+                        : evaluacionIA.tiempo_respuesta
+                      }
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

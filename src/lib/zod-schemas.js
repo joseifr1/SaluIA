@@ -32,8 +32,11 @@ const isValidChileanPhone = (phone) => {
 };
 
 // Base validations
-export const rutSchema = z.string()
-  .min(1, 'RUT es requerido')
+export const rutSchema = z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  })
+  .min(1, 'Campo obligatorio')
   .refine((rut) => {
     // Permitir RUTs sin validación estricta por ahora para testing
     if (!rut || rut.trim() === '') return false;
@@ -41,30 +44,66 @@ export const rutSchema = z.string()
     return rut.length >= 8;
   }, 'RUT debe tener al menos 8 caracteres');
 
-export const firstNameSchema = z.string()
-  .min(1, 'Nombre es requerido')
+export const firstNameSchema = z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  })
+  .min(1, 'Campo obligatorio')
   .max(50, 'Nombre no debe exceder 50 caracteres');
 
-export const lastNameSchema = z.string()
-  .min(1, 'Apellido es requerido')
+export const lastNameSchema = z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  })
+  .min(1, 'Campo obligatorio')
   .max(50, 'Apellido no debe exceder 50 caracteres');
 
-export const birthDateSchema = z.string()
-  .min(1, 'Fecha de nacimiento es requerida')
+export const birthDateSchema = z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  })
+  .min(1, 'Campo obligatorio')
   .refine((date) => {
-    const birthDate = new Date(date);
+    if (!date) return false;
+    
+    // Parsear fecha en formato DD/MM/YYYY
+    const parts = date.split('/');
+    if (parts.length !== 3) return false;
+    
+    const [day, month, year] = parts.map(Number);
+    
+    // Validar que los valores sean números válidos
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return false;
+    
+    // Validar rangos básicos
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900) return false;
+    
+    // Crear fecha usando el constructor con año, mes (0-indexed), día para evitar problemas de zona horaria
+    const dateObj = new Date(year, month - 1, day);
+    
+    // Verificar que la fecha es válida (evita fechas como 31/02/2000)
+    // Si la fecha es inválida, JavaScript ajustará los valores (ej: 31/02 se convierte en 03/03)
+    if (dateObj.getDate() !== day || dateObj.getMonth() + 1 !== month || dateObj.getFullYear() !== year) {
+      return false;
+    }
+    
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const maxAge = new Date();
     maxAge.setFullYear(today.getFullYear() - 120);
-    return birthDate <= today && birthDate >= maxAge;
-  }, 'Fecha de nacimiento inválida');
+    maxAge.setHours(0, 0, 0, 0);
+    
+    dateObj.setHours(0, 0, 0, 0);
+    
+    return dateObj <= today && dateObj >= maxAge;
+  }, 'Fecha de nacimiento inválida. Use formato DD/MM/YYYY');
 
 export const genderSchema = z.enum(['M', 'F', 'O'], {
-  required_error: 'Sexo es requerido',
+  required_error: 'Campo obligatorio',
 });
 
 export const healthInsuranceSchema = z.enum(['fonasa', 'isapre', 'particular', 'otro'], {
-  required_error: 'Previsión es requerida',
+  required_error: 'Campo obligatorio',
 });
 
 export const phoneSchema = z.string()
@@ -96,62 +135,71 @@ export const oxygenSaturationSchema = z.number()
   .refine((sat) => !sat || (sat >= 70 && sat <= 100), 'Saturación debe estar entre 70% y 100%');
 
 export const diagnosisSchema = z.object({
-  motivo_consulta: z.string().min(1, 'Motivo de consulta es requerido'),
-  condicion_clinica: z.string().min(1, 'Condición clínica es requerida'),
-  anamnesis: z.string().min(1, 'Anamnesis es requerida'),
+  motivo_consulta: z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  }).min(1, 'Campo obligatorio'),
+  condicion_clinica: z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  }).min(1, 'Campo obligatorio'),
+  anamnesis: z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  }).min(1, 'Campo obligatorio'),
   signos_vitales: z.string().optional(),
   // Campos individuales de signos vitales
-  presion_sistolica: z.number({
-    required_error: 'Presión arterial sistólica es requerida',
-    invalid_type_error: 'Presión arterial sistólica debe ser un número'
-  }).refine((val) => val !== null && val !== undefined, {
-    message: 'Presión arterial sistólica es requerida'
-  }),
-  presion_diastolica: z.number({
-    required_error: 'Presión arterial diastólica es requerida',
-    invalid_type_error: 'Presión arterial diastólica debe ser un número'
-  }).refine((val) => val !== null && val !== undefined, {
-    message: 'Presión arterial diastólica es requerida'
-  }),
+  presion_sistolica: z.number().optional(),
+  presion_diastolica: z.number().optional(),
   presion_media: z.number({
-    required_error: 'Presión arterial media es requerida',
-    invalid_type_error: 'Presión arterial media debe ser un número'
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
   }).refine((val) => val !== null && val !== undefined, {
-    message: 'Presión arterial media es requerida'
+    message: 'Campo obligatorio'
   }),
   temperatura: z.number({
-    required_error: 'Temperatura es requerida',
-    invalid_type_error: 'Temperatura debe ser un número'
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
   }).refine((val) => val !== null && val !== undefined, {
-    message: 'Temperatura es requerida'
+    message: 'Campo obligatorio'
   }),
-  saturacion_oxigeno: z.number({
-    required_error: 'Saturación oxígeno es requerida',
-    invalid_type_error: 'Saturación oxígeno debe ser un número'
-  }).refine((val) => val !== null && val !== undefined, {
-    message: 'Saturación oxígeno es requerida'
-  }),
+  saturacion_oxigeno: z.number().optional(),
   frecuencia_cardiaca: z.number({
-    required_error: 'Frecuencia cardíaca es requerida',
-    invalid_type_error: 'Frecuencia cardíaca debe ser un número'
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
   }).refine((val) => val !== null && val !== undefined, {
-    message: 'Frecuencia cardíaca es requerida'
+    message: 'Campo obligatorio'
   }),
-  frecuencia_respiratoria: z.number().optional(),
-  tipo_cama: z.string().optional(),
-  glasgow: z.number({
-    required_error: 'Glasgow es requerido',
-    invalid_type_error: 'Glasgow debe ser un número'
+  frecuencia_respiratoria: z.number({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
   }).refine((val) => val !== null && val !== undefined, {
-    message: 'Glasgow es requerido'
+    message: 'Campo obligatorio'
   }),
+  tipo_cama: z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  })
+    .min(1, 'Campo obligatorio'),
+  ges: z.boolean({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  }).refine((val) => val !== null && val !== undefined, {
+    message: 'Campo obligatorio'
+  }),
+  glasgow: z.number().optional(),
   fio2: z.number().optional(),
-  fio2_mayor_igual_50: z.boolean().optional(),
   examenes: z.string().optional(),
   laboratorios: z.string().optional(),
   imagenes: z.string().optional(),
-  diagnostico: z.string().min(1, 'Diagnóstico es requerido'),
-  triage: z.number()
+  diagnostico: z.string({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  }).min(1, 'Campo obligatorio'),
+  triage: z.number({
+    required_error: 'Campo obligatorio',
+    invalid_type_error: 'Campo obligatorio'
+  })
     .min(1, 'Triage debe ser entre 1 y 5')
     .max(5, 'Triage debe ser entre 1 y 5')
     .refine((val) => val >= 1 && val <= 5, 'Triage debe ser un número entre 1 y 5'),

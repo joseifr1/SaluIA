@@ -204,6 +204,27 @@ class ApiClient {
     });
   }
 
+  async updateEvaluacionLeyUrgencia(id, data) {
+    // Permite actualizar: pertinencia_medico, observaciones, estado_aseguradora, pertinencia_aseguradora, sugerencia_ia
+    return this.request(`/evaluacion-ley-urgencia/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateDecisionAseguradora(id, data) {
+    // Endpoint específico para actualizar la decisión de la aseguradora
+    return this.request(`/evaluacion-ley-urgencia/${id}/aseguradora`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getComparacionEvaluacion(id) {
+    // Obtiene la comparación de decisiones (IA, médico, aseguradora)
+    return this.request(`/evaluacion-ley-urgencia/${id}/comparacion`);
+  }
+
   async saveDraft(data) {
     return this.request('/borradores', {
       method: 'POST',
@@ -325,6 +346,14 @@ class ApiClient {
       console.error('🌐 ApiClient: Error en createEpisodio:', error);
       throw error;
     }
+  }
+
+  async updateEpisodio(id, data) {
+    // Permite actualizar: id_paciente, centro, fecha_adm, fecha_est, fecha_alta, estado
+    return this.request(`/episodios/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
   // --- Diagnóstico ---

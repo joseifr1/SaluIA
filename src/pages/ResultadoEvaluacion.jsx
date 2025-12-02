@@ -21,7 +21,9 @@ export function ResultadoEvaluacion() {
   const [paciente, setPaciente] = useState(null);
   const [diagnostico, setDiagnostico] = useState(null);
   const [observacion, setObservacion] = useState(null);
-  const [pertinencia_medico, setPertinenciaMedico] = useState(null);
+  const [pertinencia_medico, setPertinenciaMedico] = useState(null); // null = Pendiente, true = Aplica, false = No aplica
+  const [estadoPaciente, setEstadoPaciente] = useState('Pendiente');
+  const [respuestaAseguradora, setRespuestaAseguradora] = useState('Pendiente');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [evaluacionMedica, setEvaluacionMedica] = useState(null);
@@ -60,6 +62,19 @@ export function ResultadoEvaluacion() {
               if (registro?.id_eval_medica) {
                 const evaluacionMedicaExistente = await apiClient.getEvaluacionLeyUrgencia(registro.id_eval_medica);
                 setEvaluacionMedica(evaluacionMedicaExistente);
+                // Cargar valores existentes si la evaluación ya fue guardada
+                if (evaluacionMedicaExistente.pertinencia_medico !== null && evaluacionMedicaExistente.pertinencia_medico !== undefined) {
+                  setPertinenciaMedico(evaluacionMedicaExistente.pertinencia_medico);
+                }
+                if (evaluacionMedicaExistente.estado_paciente) {
+                  setEstadoPaciente(evaluacionMedicaExistente.estado_paciente);
+                }
+                if (evaluacionMedicaExistente.respuesta_aseguradora) {
+                  setRespuestaAseguradora(evaluacionMedicaExistente.respuesta_aseguradora);
+                }
+                if (evaluacionMedicaExistente.observaciones) {
+                  setObservacion(evaluacionMedicaExistente.observaciones);
+                }
               }
             } catch (err) {
               console.warn('No se pudo obtener evaluación médica:', err);
@@ -144,10 +159,7 @@ export function ResultadoEvaluacion() {
   };
 
   const handleGuardarEvaluacion = async () => {
-    if (pertinencia_medico === null) {
-      alert("Debe seleccionar una opción antes de guardar.");
-      return;
-    }
+    // Permitir guardar incluso si es "Pendiente" (null)
 
     // Validar que tenemos todos los datos necesarios
     if (!evaluation?.id_episodio) {
@@ -165,40 +177,73 @@ export function ResultadoEvaluacion() {
       return;
     }
 
-    const payload = {
-      id_episodio: evaluation.id_episodio,
-      id_eval_ia: evaluation.id_eval_ia,
-      id_medico: userId,
-      pertinencia_medico: pertinencia_medico,
-      observaciones: observacion || null,
-      estado_aseguradora: evaluation.estado_aseguradora || null,
-      sugerencia_ia: evaluation.pertinencia_ia || null,
-    };
+    // Si ya existe una evaluación médica, usar PUT para actualizar
+    if (evaluacionMedica?.id_eval_medica) {
+      const updatePayload = {
+        pertinencia_medico: pertinencia_medico,
+        observaciones: observacion || null,
+        estado_paciente: estadoPaciente,
+        respuesta_aseguradora: respuestaAseguradora,
+        sugerencia_ia: evaluation.pertinencia_ia || null,
+      };
 
-    console.log("📤 Enviando evaluación médica:", payload);
-    console.log("📋 Datos de evaluación disponibles:", {
-      id_episodio: evaluation.id_episodio,
-      id_eval_ia: evaluation.id_eval_ia,
-      userId: userId,
-      pertinencia_ia: evaluation.pertinencia_ia,
-    });
+      console.log("📤 Actualizando evaluación médica:", updatePayload);
+      console.log("📋 ID evaluación médica:", evaluacionMedica.id_eval_medica);
 
-    try {
-      const respuesta = await apiClient.createEvaluacionLeyUrgencia(payload);
-      console.log("✅ Evaluación guardada:", respuesta);
-      alert("Evaluación guardada correctamente.");
-      navigate(`/`)
-    } catch (error) {
-      console.error("❌ Error al guardar la evaluación:", error);
-      console.error("📋 Payload enviado:", payload);
-      console.error("🔍 Detalles del error:", {
-        status: error.status,
-        message: error.message,
+      try {
+        const respuesta = await apiClient.updateEvaluacionLeyUrgencia(evaluacionMedica.id_eval_medica, updatePayload);
+        console.log("✅ Evaluación actualizada:", respuesta);
+        alert("Evaluación actualizada correctamente.");
+        navigate(`/`);
+      } catch (error) {
+        console.error("❌ Error al actualizar la evaluación:", error);
+        console.error("📋 Payload enviado:", updatePayload);
+        console.error("🔍 Detalles del error:", {
+          status: error.status,
+          message: error.message,
+        });
+        
+        const errorMessage = error.message || 'Error desconocido';
+        alert(`Error al actualizar la evaluación: ${errorMessage}\n\nPor favor, verifique que todos los datos sean correctos e intente nuevamente.`);
+      }
+    } else {
+      // Si no existe, crear nueva evaluación
+      const payload = {
+        id_episodio: evaluation.id_episodio,
+        id_eval_ia: evaluation.id_eval_ia,
+        id_medico: userId,
+        pertinencia_medico: pertinencia_medico,
+        observaciones: observacion || null,
+        estado_paciente: estadoPaciente,
+        respuesta_aseguradora: respuestaAseguradora,
+        sugerencia_ia: evaluation.pertinencia_ia || null,
+      };
+
+      console.log("📤 Enviando evaluación médica:", payload);
+      console.log("📋 Datos de evaluación disponibles:", {
+        id_episodio: evaluation.id_episodio,
+        id_eval_ia: evaluation.id_eval_ia,
+        userId: userId,
+        pertinencia_ia: evaluation.pertinencia_ia,
       });
-      
-      // Mostrar mensaje de error más descriptivo
-      const errorMessage = error.message || 'Error desconocido';
-      alert(`Error al guardar la evaluación: ${errorMessage}\n\nPor favor, verifique que todos los datos sean correctos e intente nuevamente.`);
+
+      try {
+        const respuesta = await apiClient.createEvaluacionLeyUrgencia(payload);
+        console.log("✅ Evaluación guardada:", respuesta);
+        alert("Evaluación guardada correctamente.");
+        navigate(`/`);
+      } catch (error) {
+        console.error("❌ Error al guardar la evaluación:", error);
+        console.error("📋 Payload enviado:", payload);
+        console.error("🔍 Detalles del error:", {
+          status: error.status,
+          message: error.message,
+        });
+        
+        // Mostrar mensaje de error más descriptivo
+        const errorMessage = error.message || 'Error desconocido';
+        alert(`Error al guardar la evaluación: ${errorMessage}\n\nPor favor, verifique que todos los datos sean correctos e intente nuevamente.`);
+      }
     }
   };
 
@@ -434,15 +479,31 @@ export function ResultadoEvaluacion() {
           </div>
         )}
 
-        {/* Modelo de IA */}
-        {evaluation.modelo && (
-          <div className="bg-white bg-opacity-50 rounded-lg p-4 mb-6 mx-6">
-            <h3 className="font-medium mb-2">Modelo de IA Utilizado</h3>
-            <p className="text-sm text-gray-800">{evaluation.modelo}</p>
+        {/* Modelo de IA y Tiempo de Respuesta */}
+        <div className="bg-white bg-opacity-50 rounded-lg p-4 mb-6 mx-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {evaluation.modelo && (
+              <div>
+                <h3 className="font-medium mb-2">Modelo de IA Utilizado</h3>
+                <p className="text-sm text-gray-800">{evaluation.modelo}</p>
+              </div>
+            )}
+            {evaluation.tiempo_respuesta !== null && evaluation.tiempo_respuesta !== undefined && (
+              <div>
+                <h3 className="font-medium mb-2">Tiempo de Respuesta</h3>
+                <p className="text-sm text-gray-800">
+                  {typeof evaluation.tiempo_respuesta === 'number' 
+                    ? `${evaluation.tiempo_respuesta.toFixed(2)} segundos`
+                    : evaluation.tiempo_respuesta
+                  }
+                </p>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
       
+
 
     {/* Acciones */}
     <div className="card print:hidden space-y-4">
@@ -454,25 +515,32 @@ export function ResultadoEvaluacion() {
         </p>
       </div>
 
-      {/* Selección de decisión */}
+
+      {/* Decisión Médico */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Selección de Evaluación
+          Decisión Médico
         </label>
         <select
           className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
-          value={pertinencia_medico === null ? "" : pertinencia_medico ? "true" : "false"}
+          value={pertinencia_medico === null ? "Pendiente" : pertinencia_medico ? "Aplica" : "No aplica"}
           onChange={(e) => {
             const value = e.target.value;
-            setPertinenciaMedico(value === "true"); // convierte string a boolean
+            if (value === "Pendiente") {
+              setPertinenciaMedico(null);
+            } else if (value === "Aplica") {
+              setPertinenciaMedico(true);
+            } else {
+              setPertinenciaMedico(false);
+            }
           }}
+          disabled={yaProcesada}
         >
-          <option value="">-- Seleccione una opción --</option>
-          <option value="true">Caso pertinente a Ley de Urgencias</option>
-          <option value="false">Caso NO pertinente a Ley de Urgencias</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Aplica">Aplica</option>
+          <option value="No aplica">No aplica</option>
         </select>
       </div>
-
 
       {/* Campo de observación opcional */}
       <div>
@@ -483,8 +551,9 @@ export function ResultadoEvaluacion() {
           className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
           placeholder="Ingrese sus criterios o comentarios aquí..."
           rows={3}
-          value={observacion}   // necesitarás un useState para manejar esto
+          value={observacion || ''}
           onChange={(e) => setObservacion(e.target.value)}
+          disabled={yaProcesada}
         />
       </div>
 
@@ -492,9 +561,9 @@ export function ResultadoEvaluacion() {
       <div className="mt-4">
         <button
           onClick={handleGuardarEvaluacion}
-          disabled={pertinencia_medico === null} // 🔹 deshabilitado si no hay selección
+          disabled={yaProcesada}
           className={`flex justify-center items-center px-4 py-2 text-white font-semibold rounded-md w-full
-            ${pertinencia_medico === null 
+            ${yaProcesada
               ? 'bg-gray-300 cursor-not-allowed' 
               : 'bg-[#a867ab] hover:bg-[#7c308a]'
             }`}
