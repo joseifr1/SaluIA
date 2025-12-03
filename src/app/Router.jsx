@@ -13,6 +13,7 @@ import { ResultadoEvaluacion } from '../pages/ResultadoEvaluacion.jsx';
 import { CierreEvaluacion } from '../pages/CierreEvaluacion.jsx';
 import { Analitica } from '../pages/Analitica.jsx';
 import { AdminUsuarios } from '../pages/AdminUsuarios.jsx';
+import { GestioinJefes } from '../pages/GestioinJefes.jsx';
 import { NotFound } from '../pages/NotFound.jsx';
 
 const router = createBrowserRouter([
@@ -74,6 +75,14 @@ const router = createBrowserRouter([
             element: (
               <ProtectedRoute requiredRole="admin">
                 <AdminUsuarios />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: 'jefes',
+            element: (
+              <ProtectedRoute requiredRole="admin">
+                <GestioinJefes />
               </ProtectedRoute>
             ),
           },

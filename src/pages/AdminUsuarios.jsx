@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, UserCheck, UserX, Mail, MoreVertical, Shield, Clock, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Table } from '../components/Table.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { TextInput } from '../components/TextInput.jsx';
@@ -371,11 +372,20 @@ export function AdminUsuarios() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Gestión de Usuarios</h1>
-        <p className="mt-2 text-gray-600">
-          Administre usuarios del sistema y controle el acceso
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Gestión de Usuarios</h1>
+          <p className="mt-2 text-gray-600">Administre usuarios del sistema y controle el acceso</p>
+        </div>
+
+        <div className="ml-4">
+          <Link
+            to="/admin/jefes"
+            className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-white hover:opacity-90"
+          >
+            Gestionar Jefes de Turno
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}
