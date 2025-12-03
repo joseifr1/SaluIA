@@ -1,7 +1,8 @@
 // API Configuration
+// Usar variable de entorno si está disponible, sino usar backend desplegado
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000/api',
-  TIMEOUT: 10000,
+  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'https://backend-saluia.235r64oana6x.us-south.codeengine.appdomain.cloud/api',
+  TIMEOUT: 30000, // Aumentado para requests más lentos en producción
 };
 
 // App Configuration

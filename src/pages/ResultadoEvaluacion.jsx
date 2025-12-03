@@ -1,10 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle, 
-  ChevronDown, 
-  ArrowRight, 
+import {
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  ChevronDown,
+  ArrowRight,
   Printer,
   Download,
   Loader2
@@ -47,8 +47,41 @@ export function ResultadoEvaluacion() {
         setError(null);
         try {
           // 1️⃣ Obtener evaluación IA
-          const evaluacionIA = await apiClient.getEvaluacionIA(id);
-          setEvaluation(evaluacionIA);
+          // El id puede ser id_eval_ia o id_episodio, necesitamos manejarlo correctamente
+          let evaluacionIA = null;
+          let idEvalIA = id;
+
+          try {
+            // Primero intentar obtener la evaluación IA directamente con el id proporcionado
+            evaluacionIA = await apiClient.getEvaluacionIA(id);
+            setEvaluation(evaluacionIA);
+          } catch (err) {
+            // Si falla, puede ser que el id sea un id_episodio, buscar en los registros
+            console.warn('No se pudo obtener evaluación IA con id directo, buscando en registros...', err);
+            try {
+              const registros = await apiClient.getRegistros();
+              const registro = registros.find(r =>
+                r.id === parseInt(id) ||
+                r.id_eval_ia === parseInt(id) ||
+                r.id_episodio === parseInt(id)
+              );
+
+              if (registro && registro.id_eval_ia) {
+                idEvalIA = registro.id_eval_ia;
+                evaluacionIA = await apiClient.getEvaluacionIA(registro.id_eval_ia);
+                setEvaluation(evaluacionIA);
+              } else {
+                throw new Error('No se encontró una evaluación IA para este ID');
+              }
+            } catch (searchErr) {
+              console.error('Error buscando evaluación IA en registros:', searchErr);
+              throw new Error('No se pudo encontrar la evaluación IA. Verifique que el ID sea correcto.');
+            }
+          }
+
+          if (!evaluacionIA) {
+            throw new Error('No se pudo obtener la evaluación IA');
+          }
 
           // 2️⃣ Obtener paciente asociado al episodio
           if (evaluacionIA?.id_episodio) {
@@ -202,7 +235,7 @@ export function ResultadoEvaluacion() {
           status: error.status,
           message: error.message,
         });
-        
+
         const errorMessage = error.message || 'Error desconocido';
         alert(`Error al actualizar la evaluación: ${errorMessage}\n\nPor favor, verifique que todos los datos sean correctos e intente nuevamente.`);
       }
@@ -239,7 +272,7 @@ export function ResultadoEvaluacion() {
           status: error.status,
           message: error.message,
         });
-        
+
         // Mostrar mensaje de error más descriptivo
         const errorMessage = error.message || 'Error desconocido';
         alert(`Error al guardar la evaluación: ${errorMessage}\n\nPor favor, verifique que todos los datos sean correctos e intente nuevamente.`);
@@ -492,7 +525,7 @@ export function ResultadoEvaluacion() {
               <div>
                 <h3 className="font-medium mb-2">Tiempo de Respuesta</h3>
                 <p className="text-sm text-gray-800">
-                  {typeof evaluation.tiempo_respuesta === 'number' 
+                  {typeof evaluation.tiempo_respuesta === 'number'
                     ? `${evaluation.tiempo_respuesta.toFixed(2)} segundos`
                     : evaluation.tiempo_respuesta
                   }
@@ -502,7 +535,7 @@ export function ResultadoEvaluacion() {
           </div>
         </div>
       </div>
-      
+
 
 
     {/* Acciones */}
@@ -510,7 +543,7 @@ export function ResultadoEvaluacion() {
       {/* Disclaimer */}
       <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md">
         <p className="text-sm text-yellow-800">
-          ⚠️ A pesar de la recomendación de la IA, el médico <strong>debe evaluar y determinar si el caso aplica o no a la Ley de Urgencias</strong>. 
+          ⚠️ A pesar de la recomendación de la IA, el médico <strong>debe evaluar y determinar si el caso aplica o no a la Ley de Urgencias</strong>.
           Puede dejar una observación opcional sobre los criterios personales utilizados para tomar su decisión.
         </p>
       </div>
@@ -564,7 +597,7 @@ export function ResultadoEvaluacion() {
           disabled={yaProcesada}
           className={`flex justify-center items-center px-4 py-2 text-white font-semibold rounded-md w-full
             ${yaProcesada
-              ? 'bg-gray-300 cursor-not-allowed' 
+              ? 'bg-gray-300 cursor-not-allowed'
               : 'bg-[#a867ab] hover:bg-[#7c308a]'
             }`}
         >

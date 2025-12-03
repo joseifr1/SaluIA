@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, Download, Plus, Calendar, FileText, Eye, Loader2, ArrowRight, Check } from 'lucide-react';
+import { Search, Filter, Download, Plus, Calendar, FileText, Eye, Loader2, ArrowRight, Check, XCircle } from 'lucide-react';
 import { Table } from '../components/Table.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { NoRecordsFound } from '../components/EmptyState.jsx';
@@ -14,7 +14,7 @@ export function Registros() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Estados para información de evaluación del registro seleccionado (panel lateral)
   const [evaluation, setEvaluation] = useState(null);
   const [evaluacionMedica, setEvaluacionMedica] = useState(null);
@@ -23,25 +23,25 @@ export function Registros() {
   const [respuestaAseguradora, setRespuestaAseguradora] = useState('Pendiente');
   const [loadingEvaluation, setLoadingEvaluation] = useState(false);
   const [userId, setUserId] = useState(null);
-  
+
   // Estado para almacenar datos de evaluación de todos los registros (para la tabla)
   const [recordsEvaluationData, setRecordsEvaluationData] = useState({});
-  
+
   // Estado para controlar el popup de respuesta aseguradora
   const [popupAseguradora, setPopupAseguradora] = useState(null); // { recordId, position: { x, y } }
   const [savingAseguradora, setSavingAseguradora] = useState(false);
-  
+
   // Estado para controlar el popup de estado paciente
   const [popupEstadoPaciente, setPopupEstadoPaciente] = useState(null); // { recordId, idEpisodio, position: { x, y } }
   const [savingEstadoPaciente, setSavingEstadoPaciente] = useState(false);
-  
+
   // Estado para controlar el popup de decisión médico
   const [popupDecisionMedico, setPopupDecisionMedico] = useState(null); // { recordId, idEvalMedica, position: { x, y } }
   const [savingDecisionMedico, setSavingDecisionMedico] = useState(false);
 
   useEffect(() => {
     loadRegistros();
-    
+
     // Obtener ID del usuario del token
     const token = localStorage.getItem("auth_token");
     if (token) {
@@ -53,7 +53,7 @@ export function Registros() {
       }
     }
   }, []);
-  
+
   // Cerrar popup cuando se hace clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -67,7 +67,7 @@ export function Registros() {
         setPopupDecisionMedico(null);
       }
     };
-    
+
     if (popupAseguradora || popupEstadoPaciente || popupDecisionMedico) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
@@ -75,7 +75,7 @@ export function Registros() {
       };
     }
   }, [popupAseguradora, popupEstadoPaciente, popupDecisionMedico]);
-  
+
   // Cargar información de evaluación cuando se selecciona un registro
   useEffect(() => {
     if (selectedRecord) {
@@ -89,41 +89,53 @@ export function Registros() {
       setRespuestaAseguradora('Pendiente');
     }
   }, [selectedRecord]);
-  
+
   const loadEvaluationData = async (record) => {
     setLoadingEvaluation(true);
     try {
-      // El record.id es el id_eval_ia según la navegación en ResultadoEvaluacion
-      // Intentar obtener la evaluación IA
+      // Validar que el registro tenga id_eval_ia antes de intentar obtener la evaluación IA
+      if (!record.id_eval_ia) {
+        console.warn('Este registro no tiene evaluación IA');
+        setEvaluation(null);
+        setEvaluacionMedica(null);
+        setPertinenciaMedico(null);
+        setEstadoPaciente('Pendiente');
+        setRespuestaAseguradora('Pendiente');
+        setLoadingEvaluation(false);
+        return;
+      }
+
+      // El record.id es el id_episodio, pero necesitamos usar record.id_eval_ia para obtener la evaluación IA
+      // Intentar obtener la evaluación IA usando el id_eval_ia correcto
       try {
-        const evaluacionIA = await apiClient.getEvaluacionIA(record.id);
+        const evaluacionIA = await apiClient.getEvaluacionIA(record.id_eval_ia);
         setEvaluation(evaluacionIA);
-        
+
         // Si hay id_episodio, buscar si existe evaluación médica
         if (evaluacionIA?.id_episodio) {
           // Buscar en los registros si existe evaluación médica para este episodio
           const registros = await apiClient.getRegistros();
-          const registroConEval = registros.find(r => 
-            (r.id_episodio === evaluacionIA.id_episodio) || 
+          const registroConEval = registros.find(r =>
+            (r.id_episodio === evaluacionIA.id_episodio) ||
             (r.id === evaluacionIA.id_episodio)
           );
-          
+
           if (registroConEval?.id_eval_medica) {
             try {
               const evaluacionMedicaExistente = await apiClient.getEvaluacionLeyUrgencia(registroConEval.id_eval_medica);
               setEvaluacionMedica(evaluacionMedicaExistente);
-              
+
               // Obtener comparación para cargar respuesta aseguradora correctamente
               try {
                 const comparacion = await apiClient.getComparacionEvaluacion(registroConEval.id_eval_medica);
-                
+
                 // Cargar decisión médico desde comparación
                 if (comparacion?.decisiones?.medico?.pertinencia !== undefined) {
                   setPertinenciaMedico(comparacion.decisiones.medico.pertinencia);
                 } else if (evaluacionMedicaExistente.pertinencia_medico !== null && evaluacionMedicaExistente.pertinencia_medico !== undefined) {
                   setPertinenciaMedico(evaluacionMedicaExistente.pertinencia_medico);
                 }
-                
+
                 // Convertir pertinencia_aseguradora (boolean) a respuestaAseguradora (string)
                 if (comparacion?.decisiones?.aseguradora?.pertinencia !== undefined) {
                   const pertinencia = comparacion.decisiones.aseguradora.pertinencia;
@@ -145,7 +157,7 @@ export function Registros() {
                 }
                 setRespuestaAseguradora('Pendiente');
               }
-              
+
               if (evaluacionMedicaExistente.estado_paciente) {
                 setEstadoPaciente(evaluacionMedicaExistente.estado_paciente);
               }
@@ -183,13 +195,13 @@ export function Registros() {
       setLoadingEvaluation(false);
     }
   };
-  
+
   const handleGuardarEstadoPacientePopup = async (idEpisodio, nuevoEstado) => {
     setSavingEstadoPaciente(true);
-    
+
     // Guardar el recordId antes de cerrar el popup
     const recordId = popupEstadoPaciente.recordId;
-    
+
     const payload = {
       estado: nuevoEstado,
     };
@@ -197,13 +209,13 @@ export function Registros() {
     try {
       const respuesta = await apiClient.updateEpisodio(idEpisodio, payload);
       console.log("✅ Estado del paciente actualizado desde popup:", respuesta);
-      
+
       // Cerrar popup
       setPopupEstadoPaciente(null);
-      
+
       // Recargar todos los registros para actualizar la tabla
       const updatedRecords = await loadRegistros();
-      
+
       // Restaurar la selección del registro después de recargar
       if (recordId && updatedRecords) {
         const updatedRecord = updatedRecords.find(r => r.id === recordId);
@@ -222,10 +234,10 @@ export function Registros() {
 
   const handleGuardarDecisionMedicoPopup = async (idEvalMedica, nuevoValor) => {
     setSavingDecisionMedico(true);
-    
+
     // Guardar el recordId antes de cerrar el popup
     const recordId = popupDecisionMedico.recordId;
-    
+
     // Convertir string a boolean
     let pertinencia_medico = null;
     if (nuevoValor === 'Aplica') {
@@ -243,13 +255,13 @@ export function Registros() {
     try {
       const respuesta = await apiClient.updateEvaluacionLeyUrgencia(idEvalMedica, payload);
       console.log("✅ Decisión médico actualizada desde popup:", respuesta);
-      
+
       // Cerrar popup
       setPopupDecisionMedico(null);
-      
+
       // Recargar todos los registros para actualizar la tabla
       const updatedRecords = await loadRegistros();
-      
+
       // Restaurar la selección del registro después de recargar
       if (recordId && updatedRecords) {
         const updatedRecord = updatedRecords.find(r => r.id === recordId);
@@ -268,10 +280,10 @@ export function Registros() {
 
   const handleGuardarDecisionAseguradoraPopup = async (idEvalMedica, nuevoValor) => {
     setSavingAseguradora(true);
-    
+
     // Guardar el recordId antes de cerrar el popup
     const recordId = popupAseguradora.recordId;
-    
+
     // Convertir string a boolean
     let pertinencia_aseguradora = null;
     if (nuevoValor === 'Aplica') {
@@ -289,13 +301,13 @@ export function Registros() {
     try {
       const respuesta = await apiClient.updateDecisionAseguradora(idEvalMedica, payload);
       console.log("✅ Decisión de aseguradora actualizada desde popup:", respuesta);
-      
+
       // Cerrar popup
       setPopupAseguradora(null);
-      
+
       // Recargar todos los registros para actualizar la tabla
       const updatedRecords = await loadRegistros();
-      
+
       // Restaurar la selección del registro después de recargar
       if (recordId && updatedRecords) {
         const updatedRecord = updatedRecords.find(r => r.id === recordId);
@@ -315,12 +327,12 @@ export function Registros() {
   const handleGuardarDecisionAseguradora = async () => {
     // Verificar que tenemos evaluación médica o al menos el registro seleccionado
     let idEvalMedica = evaluacionMedica?.id_eval_medica;
-    
+
     // Si no hay id_eval_medica en evaluacionMedica, intentar obtenerlo del registro
     if (!idEvalMedica && selectedRecord?.id_eval_medica) {
       idEvalMedica = selectedRecord.id_eval_medica;
     }
-    
+
     if (!idEvalMedica) {
       alert("Error: No se encontró la evaluación médica. Debe crear una evaluación médica primero.");
       return;
@@ -352,7 +364,7 @@ export function Registros() {
       const respuesta = await apiClient.updateDecisionAseguradora(idEvalMedica, payload);
       console.log("✅ Decisión de aseguradora actualizada:", respuesta);
       alert("Decisión de aseguradora actualizada correctamente.");
-      
+
       // Recargar la comparación para obtener el valor actualizado
       try {
         const comparacionActualizada = await apiClient.getComparacionEvaluacion(idEvalMedica);
@@ -369,7 +381,7 @@ export function Registros() {
       } catch (compErr) {
         console.warn('No se pudo recargar la comparación después de guardar:', compErr);
       }
-      
+
       // Recargar datos de evaluación y registros para actualizar la tabla
       if (selectedRecord) {
         await loadEvaluationData(selectedRecord);
@@ -422,7 +434,7 @@ export function Registros() {
       } else {
         pertinencia_aseguradora = null; // Pendiente
       }
-      
+
       const updatePayload = {
         pertinencia_medico: pertinencia_medico,
         observaciones: null,
@@ -480,7 +492,7 @@ export function Registros() {
     setError(null);
     try {
       const data = await apiClient.getRegistros();
-      
+
       // Ordenar registros por fecha (más reciente primero) para mantener orden consistente
       const sortedData = [...data].sort((a, b) => {
         // Intentar ordenar por fecha
@@ -492,12 +504,12 @@ export function Registros() {
         // Si las fechas son iguales, ordenar por ID (más reciente primero)
         return (b.id || 0) - (a.id || 0);
       });
-      
+
       setRecords(sortedData);
-      
+
       // Cargar datos de evaluación para cada registro
       await loadRecordsEvaluationData(sortedData);
-      
+
       // Devolver los registros ordenados para uso inmediato
       return sortedData;
     } catch (err) {
@@ -510,40 +522,40 @@ export function Registros() {
       setLoading(false);
     }
   };
-  
+
   const loadRecordsEvaluationData = async (registros) => {
     const evaluationDataMap = {};
-    
+
     try {
       // Paso 1: Obtener todos los datos necesarios en paralelo (una sola vez)
       const [evaluacionesIA, episodios] = await Promise.all([
         apiClient.request('/evaluacion-ia', { method: 'GET' }).catch(() => []), // GET /api/evaluacion-ia
         apiClient.getEpisodios().catch(() => []), // GET /api/episodios
       ]);
-      
+
       // Paso 2: Para cada registro, obtener los datos faltantes
       const promises = registros.map(async (record) => {
         try {
           const idEpisodio = record.id; // El id del registro es el id_episodio
-          
+
           // 1. Obtener recomendación IA: filtrar evaluacionesIA por id_episodio
           const evaluacionIA = evaluacionesIA.find(ev => ev.id_episodio === idEpisodio);
           const recomendacionIA = evaluacionIA?.pertinencia_ia ?? null;
-          
+
           // 2. Obtener respuesta doctor y aseguradora (si existe id_eval_medica)
           let respuestaDoctor = null;
           let respuestaAseguradora = null;
           let comparacionEvaluacion = null;
-          
+
           // Intentar obtener id_eval_medica del registro
           const idEvalMedica = record.id_eval_medica;
-          
+
           if (idEvalMedica) {
             try {
               comparacionEvaluacion = await apiClient.getComparacionEvaluacion(idEvalMedica);
               respuestaDoctor = comparacionEvaluacion?.decisiones?.medico?.pertinencia ?? null;
               respuestaAseguradora = comparacionEvaluacion?.decisiones?.aseguradora?.pertinencia ?? null;
-              
+
               console.log(`Registro ${record.id}: respuestaAseguradora =`, respuestaAseguradora);
             } catch (err) {
               console.warn(`No se pudo obtener comparación de evaluación para registro ${record.id}:`, err);
@@ -552,11 +564,11 @@ export function Registros() {
           } else {
             console.warn(`Registro ${record.id}: No tiene id_eval_medica. Campos disponibles:`, Object.keys(record));
           }
-          
+
           // 3. Obtener estado paciente: filtrar episodios por id_episodio
           const episodio = episodios.find(ep => ep.id_episodio === idEpisodio);
           const estadoPaciente = episodio?.estado ?? record.estado ?? record.status ?? null;
-          
+
           return {
             recordId: record.id,
             evaluacionIA: evaluacionIA || null,
@@ -579,9 +591,9 @@ export function Registros() {
           };
         }
       });
-      
+
       const results = await Promise.all(promises);
-      
+
       // Crear el mapa de datos de evaluación
       results.forEach((result) => {
         evaluationDataMap[result.recordId] = {
@@ -593,7 +605,7 @@ export function Registros() {
           estadoEpisodio: result.estadoEpisodio,
         };
       });
-      
+
       setRecordsEvaluationData(evaluationDataMap);
     } catch (error) {
       console.error('Error cargando datos de evaluación:', error);
@@ -635,28 +647,20 @@ export function Registros() {
       label: 'Paciente',
     },
     {
-      key: 'professional',
-      label: 'Profesional',
-    },
-    {
-      key: 'diagnosis',
-      label: 'Diagnóstico',
-    },
-    {
       key: 'estado_paciente',
       label: 'Estado Paciente',
       render: (value, record) => {
         const evalData = recordsEvaluationData[record.id];
         const estado = evalData?.estadoEpisodio || record.estado || record.status;
-        
+
         // Obtener id_episodio del registro (el id del registro es el id_episodio)
         const idEpisodio = record.id_episodio || record.id || evalData?.idEpisodio;
         const puedeEditar = !!idEpisodio;
-        
+
         if (!estado) {
           return <span className="text-gray-400">-</span>;
         }
-        
+
         // Mapear estados comunes a badges
         let badgeContent;
         switch (estado) {
@@ -691,7 +695,7 @@ export function Registros() {
           default:
             badgeContent = <Badge>{estado}</Badge>;
         }
-        
+
         return (
           <div className="relative">
             <button
@@ -702,11 +706,11 @@ export function Registros() {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const viewportWidth = window.innerWidth;
                   const viewportHeight = window.innerHeight;
-                  
+
                   // Calcular posición centrada horizontalmente sobre el badge
                   let x = rect.left + rect.width / 2;
                   let y = rect.bottom + 5;
-                  
+
                   // Ajustar si se sale por la derecha
                   if (x + 90 > viewportWidth) {
                     x = viewportWidth - 90;
@@ -719,7 +723,7 @@ export function Registros() {
                   if (y + 150 > viewportHeight) {
                     y = rect.top - 150;
                   }
-                  
+
                   setPopupEstadoPaciente({
                     recordId: record.id,
                     idEpisodio: idEpisodio,
@@ -765,15 +769,15 @@ export function Registros() {
         const evalData = recordsEvaluationData[record.id];
         // Usar respuestaDoctor de comparacionEvaluacion.decisiones.medico.pertinencia
         const pertinencia = evalData?.respuestaDoctor;
-        
+
         // Obtener id_eval_medica para permitir edición
         const idEvalMedica = record.id_eval_medica || evalData?.comparacionEvaluacion?.id_eval_medica;
         const puedeEditar = !!idEvalMedica;
-        
+
         if (pertinencia === null || pertinencia === undefined) {
           return <span className="text-gray-400">-</span>;
         }
-        
+
         // Mostrar según el valor: true = "Aplica", false = "No Aplica", null/undefined = "Pendiente"
         let badgeContent;
         if (pertinencia === true) {
@@ -783,7 +787,7 @@ export function Registros() {
         } else {
           badgeContent = <Badge variant="warning">Pendiente</Badge>;
         }
-        
+
         return (
           <div className="relative">
             <button
@@ -794,11 +798,11 @@ export function Registros() {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const viewportWidth = window.innerWidth;
                   const viewportHeight = window.innerHeight;
-                  
+
                   // Calcular posición centrada horizontalmente sobre el badge
                   let x = rect.left + rect.width / 2;
                   let y = rect.bottom + 5;
-                  
+
                   // Ajustar si se sale por la derecha
                   if (x + 90 > viewportWidth) {
                     x = viewportWidth - 90;
@@ -811,7 +815,7 @@ export function Registros() {
                   if (y + 120 > viewportHeight) {
                     y = rect.top - 120;
                   }
-                  
+
                   setPopupDecisionMedico({
                     recordId: record.id,
                     idEvalMedica: idEvalMedica,
@@ -831,86 +835,6 @@ export function Registros() {
           </div>
         );
       },
-    },
-    {
-      key: 'respuesta_aseguradora',
-      label: 'Respuesta Aseguradora',
-      render: (value, record) => {
-        const evalData = recordsEvaluationData[record.id];
-        // Usar respuestaAseguradora de comparacionEvaluacion.decisiones.aseguradora.pertinencia
-        let pertinencia = evalData?.respuestaAseguradora;
-        
-        // Si no está en respuestaAseguradora, intentar obtenerlo de comparacionEvaluacion directamente
-        if ((pertinencia === null || pertinencia === undefined) && evalData?.comparacionEvaluacion) {
-          pertinencia = evalData.comparacionEvaluacion?.decisiones?.aseguradora?.pertinencia;
-        }
-        
-        // Verificar si hay id_eval_medica para permitir edición
-        const idEvalMedica = record.id_eval_medica || evalData?.comparacionEvaluacion?.id_eval_medica;
-        const puedeEditar = !!idEvalMedica;
-        
-        // Mostrar según el valor: true = "Aplica", false = "No Aplica", null/undefined = "Pendiente"
-        let badgeContent;
-        if (pertinencia === true) {
-          badgeContent = <Badge variant="success">Aplica</Badge>;
-        } else if (pertinencia === false) {
-          badgeContent = <Badge variant="danger">No Aplica</Badge>;
-        } else {
-          // null o undefined se muestran como "Pendiente"
-          badgeContent = <Badge variant="warning">Pendiente</Badge>;
-        }
-        
-        return (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={(e) => {
-                if (puedeEditar) {
-                  e.stopPropagation();
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const viewportWidth = window.innerWidth;
-                  const viewportHeight = window.innerHeight;
-                  
-                  // Calcular posición centrada horizontalmente sobre el badge
-                  let x = rect.left + rect.width / 2;
-                  let y = rect.bottom + 5;
-                  
-                  // Ajustar si se sale por la derecha
-                  if (x + 90 > viewportWidth) {
-                    x = viewportWidth - 90;
-                  }
-                  // Ajustar si se sale por la izquierda
-                  if (x - 90 < 0) {
-                    x = 90;
-                  }
-                  // Ajustar si se sale por abajo (mostrar arriba en su lugar)
-                  if (y + 120 > viewportHeight) {
-                    y = rect.top - 120;
-                  }
-                  
-                  setPopupAseguradora({
-                    recordId: record.id,
-                    idEvalMedica: idEvalMedica,
-                    currentValue: pertinencia,
-                    position: {
-                      x: x,
-                      y: y
-                    }
-                  });
-                }
-              }}
-              className={`${puedeEditar ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}
-              disabled={!puedeEditar}
-            >
-              {badgeContent}
-            </button>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'insurance',
-      label: 'Aseguradora',
     },
   ];
 
@@ -1011,8 +935,8 @@ export function Registros() {
       </div>
 
       {/* Results */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      <div className={`grid grid-cols-1 gap-6 ${selectedRecord ? 'lg:grid-cols-3' : ''}`}>
+        <div className={selectedRecord ? 'lg:col-span-2' : ''}>
           {loading ? (
             <div className="card">
               <div className="flex items-center justify-center py-12">
@@ -1054,14 +978,23 @@ export function Registros() {
           )}
         </div>
 
-        {/* Detail panel */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-            <Eye className="w-5 h-5" />
-            Detalle del Registro
-          </h3>
+        {/* Detail panel - Solo se muestra cuando hay un registro seleccionado */}
+        {selectedRecord && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                <Eye className="w-5 h-5" />
+                Detalle del Registro
+              </h3>
+              <button
+                onClick={() => setSelectedRecord(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Cerrar panel de detalle"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
 
-          {selectedRecord ? (
             <div className="space-y-4">
               <div>
                 <h4 className="font-medium text-gray-900 mb-2">Información del Paciente</h4>
@@ -1105,7 +1038,7 @@ export function Registros() {
 
               <div className="pt-4 border-t border-gray-200">
                 <Link
-                  to={`/evaluacion/resultado/${selectedRecord.id}`}
+                  to={`/evaluacion/resultado/${selectedRecord.id_eval_ia || selectedRecord.id}`}
                   className="btn btn-primary w-full"
                 >
                   <FileText className="w-4 h-4 mr-2" />
@@ -1113,14 +1046,10 @@ export function Registros() {
                 </Link>
               </div>
             </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">
-              Seleccione un registro para ver los detalles
-            </p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-      
+
       {/* Popup para cambiar Respuesta Aseguradora */}
       {popupAseguradora && (
         <div
@@ -1136,11 +1065,11 @@ export function Registros() {
           </div>
           <div className="py-1">
             {['Pendiente', 'Aplica', 'No aplica'].map((opcion) => {
-              const isSelected = 
+              const isSelected =
                 (opcion === 'Pendiente' && popupAseguradora.currentValue === null) ||
                 (opcion === 'Aplica' && popupAseguradora.currentValue === true) ||
                 (opcion === 'No aplica' && popupAseguradora.currentValue === false);
-              
+
               return (
                 <button
                   key={opcion}
@@ -1163,7 +1092,7 @@ export function Registros() {
           </div>
         </div>
       )}
-      
+
       {/* Popup para cambiar Estado Paciente */}
       {popupEstadoPaciente && (
         <div
@@ -1180,7 +1109,7 @@ export function Registros() {
           <div className="py-1">
             {['Pendiente', 'Internado', 'De alta', 'Fallecido'].map((opcion) => {
               const isSelected = opcion === popupEstadoPaciente.currentValue;
-              
+
               return (
                 <button
                   key={opcion}
@@ -1203,7 +1132,7 @@ export function Registros() {
           </div>
         </div>
       )}
-      
+
       {/* Popup para cambiar Decisión Médico */}
       {popupDecisionMedico && (
         <div
@@ -1219,10 +1148,10 @@ export function Registros() {
           </div>
           <div className="py-1">
             {['Aplica', 'No aplica'].map((opcion) => {
-              const isSelected = 
+              const isSelected =
                 (opcion === 'Aplica' && popupDecisionMedico.currentValue === true) ||
                 (opcion === 'No aplica' && popupDecisionMedico.currentValue === false);
-              
+
               return (
                 <button
                   key={opcion}
