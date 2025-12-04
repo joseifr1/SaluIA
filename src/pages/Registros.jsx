@@ -754,11 +754,11 @@ export function Registros() {
           return <span className="text-gray-400">-</span>;
         }
         if (pertinencia === true) {
-          return <Badge variant="success">Aplica</Badge>;
+            return <Badge variant="success">Aplica</Badge>;
         } else if (pertinencia === false) {
           return <Badge variant="danger">No Aplica</Badge>;
         } else {
-          return <span className="text-gray-400">-</span>;
+            return <span className="text-gray-400">-</span>;
         }
       },
     },
@@ -817,6 +817,81 @@ export function Registros() {
                   }
 
                   setPopupDecisionMedico({
+                    recordId: record.id,
+                    idEvalMedica: idEvalMedica,
+                    currentValue: pertinencia,
+                    position: {
+                      x: x,
+                      y: y
+                    }
+                  });
+                }
+              }}
+              className={`${puedeEditar ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}
+              disabled={!puedeEditar}
+            >
+              {badgeContent}
+            </button>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'contingencia_aseguradora',
+      label: 'Contingencia Aseguradora',
+      render: (value, record) => {
+        const evalData = recordsEvaluationData[record.id];
+        // Usar respuestaAseguradora de comparacionEvaluacion.decisiones.aseguradora.pertinencia
+        const pertinencia = evalData?.respuestaAseguradora;
+
+        // Obtener id_eval_medica para permitir edición
+        const idEvalMedica = record.id_eval_medica || evalData?.comparacionEvaluacion?.id_eval_medica;
+        const puedeEditar = !!idEvalMedica;
+
+        // Si no hay id_eval_medica, mostrar "-" sin posibilidad de editar
+        if (!idEvalMedica) {
+          return <span className="text-gray-400">-</span>;
+        }
+
+        // Mostrar según el valor: true = "Aplica", false = "No Aplica", null/undefined = "Pendiente"
+        let badgeContent;
+        if (pertinencia === true) {
+          badgeContent = <Badge variant="success">Aplica</Badge>;
+        } else if (pertinencia === false) {
+          badgeContent = <Badge variant="danger">No Aplica</Badge>;
+        } else {
+          badgeContent = <Badge variant="warning">Pendiente</Badge>;
+        }
+
+        return (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={(e) => {
+                if (puedeEditar) {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const viewportWidth = window.innerWidth;
+                  const viewportHeight = window.innerHeight;
+
+                  // Calcular posición centrada horizontalmente sobre el badge
+                  let x = rect.left + rect.width / 2;
+                  let y = rect.bottom + 5;
+
+                  // Ajustar si se sale por la derecha
+                  if (x + 90 > viewportWidth) {
+                    x = viewportWidth - 90;
+                  }
+                  // Ajustar si se sale por la izquierda
+                  if (x - 90 < 0) {
+                    x = 90;
+                  }
+                  // Ajustar si se sale por abajo (mostrar arriba en su lugar)
+                  if (y + 120 > viewportHeight) {
+                    y = rect.top - 120;
+                  }
+
+                  setPopupAseguradora({
                     recordId: record.id,
                     idEvalMedica: idEvalMedica,
                     currentValue: pertinencia,
@@ -980,12 +1055,12 @@ export function Registros() {
 
         {/* Detail panel - Solo se muestra cuando hay un registro seleccionado */}
         {selectedRecord && (
-          <div className="card">
+        <div className="card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
-                <Eye className="w-5 h-5" />
-                Detalle del Registro
-              </h3>
+            <Eye className="w-5 h-5" />
+            Detalle del Registro
+          </h3>
               <button
                 onClick={() => setSelectedRecord(null)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -1065,17 +1140,24 @@ export function Registros() {
           </div>
           <div className="py-1">
             {['Pendiente', 'Aplica', 'No aplica'].map((opcion) => {
+              const currentValue = popupAseguradora.currentValue;
               const isSelected =
-                (opcion === 'Pendiente' && popupAseguradora.currentValue === null) ||
-                (opcion === 'Aplica' && popupAseguradora.currentValue === true) ||
-                (opcion === 'No aplica' && popupAseguradora.currentValue === false);
+                (opcion === 'Pendiente' && (currentValue === null || currentValue === undefined)) ||
+                (opcion === 'Aplica' && currentValue === true) ||
+                (opcion === 'No aplica' && currentValue === false);
+
+              // Determinar el valor actual como string para comparar
+              const currentValueString =
+                currentValue === true ? 'Aplica' :
+                currentValue === false ? 'No aplica' :
+                'Pendiente';
 
               return (
                 <button
                   key={opcion}
                   type="button"
                   onClick={() => {
-                    if (!savingAseguradora && opcion !== (popupAseguradora.currentValue === true ? 'Aplica' : popupAseguradora.currentValue === false ? 'No aplica' : 'Pendiente')) {
+                    if (!savingAseguradora && opcion !== currentValueString) {
                       handleGuardarDecisionAseguradoraPopup(popupAseguradora.idEvalMedica, opcion);
                     }
                   }}
@@ -1171,8 +1253,8 @@ export function Registros() {
                 </button>
               );
             })}
-          </div>
         </div>
+      </div>
       )}
     </div>
   );
