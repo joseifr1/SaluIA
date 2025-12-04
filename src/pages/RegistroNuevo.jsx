@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, ArrowLeft, Stethoscope, User, FileText, CheckCircle, Loader2 } from 'lucide-react';
 import { patientSchema, clinicalSchema, diagnosisSchema } from '../lib/zod-schemas.js';
 import { apiClient } from '../lib/apiClient.js';
+import { authService } from '../lib/auth.js';
 
 const STEPS = [
   {
@@ -430,6 +431,10 @@ export function RegistroNuevo() {
     }, 200); // Actualizar cada 200ms
 
     try {
+      // Obtener usuario actual
+      const user = await authService.getCurrentUser();
+      const userId = user ? user.id : 1;
+
       // Formatear signos vitales a texto
       const signosVitalesTexto = formatSignosVitales(data);
       
@@ -446,7 +451,7 @@ export function RegistroNuevo() {
         examenes: data.examenes || '',
         laboratorios: data.laboratorios || '',
         imagenes: data.imagenes || '',
-        id_usuario: 1 // TODO: reemplazar por el ID real del usuario logueado
+        id_usuario: userId
       };
 
       console.log('📋 Enviando diagnóstico:', diagnosticoPayload);
@@ -1188,10 +1193,13 @@ export function RegistroNuevo() {
   const submitLeyUrgencia = async (decision) => {
     setLoading(true);
     try {
+      const user = await authService.getCurrentUser();
+      const userId = user ? user.id : 1;
+      
       const evaluacionData = {
         id_episodio: formData.episodio?.id,
         id_eval_ia: formData.evaluacionIA?.id_eval_ia,
-        id_medico: 1, // TODO: Obtener ID del médico logueado
+        id_medico: userId, // TODO: Obtener ID del médico logueado
         pertinencia_medico: true, // Boolean: true/false
         observaciones: observacionesMedico 
           ? `Decisión médica: ${decision}. Observaciones: ${observacionesMedico}` 

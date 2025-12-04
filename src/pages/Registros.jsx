@@ -5,7 +5,7 @@ import { Table } from '../components/Table.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { NoRecordsFound } from '../components/EmptyState.jsx';
 import { apiClient } from '../lib/apiClient.js';
-import { jwtDecode } from 'jwt-decode';
+import { authService } from '../lib/auth.js';
 
 export function Registros() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,6 +23,7 @@ export function Registros() {
   const [respuestaAseguradora, setRespuestaAseguradora] = useState('Pendiente');
   const [loadingEvaluation, setLoadingEvaluation] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Estado para almacenar datos de evaluación de todos los registros (para la tabla)
   const [recordsEvaluationData, setRecordsEvaluationData] = useState({});
@@ -40,18 +41,21 @@ export function Registros() {
   const [savingDecisionMedico, setSavingDecisionMedico] = useState(false);
 
   useEffect(() => {
-    loadRegistros();
-
-    // Obtener ID del usuario del token
-    const token = localStorage.getItem("auth_token");
-    if (token) {
+    const init = async () => {
       try {
-        const decoded = jwtDecode(token);
-        setUserId(decoded.sub);
+        const user = await authService.getCurrentUser();
+        if (user) {
+          setUserId(user.id);
+          setIsAdmin(user.role === 'admin');
+        }
       } catch (error) {
-        console.error("Error decodificando token:", error);
+        console.error("Error obteniendo usuario:", error);
       }
-    }
+      // Cargar registros después de intentar obtener el usuario
+      loadRegistros();
+    };
+
+    init();
   }, []);
 
   // Cerrar popup cuando se hace clic fuera
@@ -491,10 +495,38 @@ export function Registros() {
     setLoading(true);
     setError(null);
     try {
+      // Obtener usuario actual para filtrar
+      const user = await authService.getCurrentUser();
+      const isUserAdmin = user?.role === 'admin';
+      const currentUserId = user?.id;
+
       const data = await apiClient.getRegistros();
+      let filteredData = data;
+
+      // Si no es admin, filtrar registros por usuario
+      if (!isUserAdmin && currentUserId) {
+        try {
+          const diagnosticos = await apiClient.getDiagnosticos();
+          // Crear un Set de IDs de episodios que pertenecen al usuario
+          const userEpisodeIds = new Set(
+            diagnosticos
+              .filter(d => d.id_usuario === currentUserId)
+              .map(d => d.id_episodio)
+          );
+          
+          filteredData = data.filter(record => userEpisodeIds.has(record.id));
+        } catch (diagErr) {
+          console.error('Error cargando diagnósticos para filtrar:', diagErr);
+          // Si falla la carga de diagnósticos, mostrar lista vacía por seguridad o todos?
+          // Por seguridad, si debería filtrar y falla, mejor mostrar vacío o manejar error.
+          // Pero para no bloquear totalmente, podríamos mostrar solo si estamos seguros.
+          // Asumiremos que si falla, no podemos filtrar, así que mostramos vacío o error.
+          filteredData = []; 
+        }
+      }
 
       // Ordenar registros por fecha (más reciente primero) para mantener orden consistente
-      const sortedData = [...data].sort((a, b) => {
+      const sortedData = [...filteredData].sort((a, b) => {
         // Intentar ordenar por fecha
         const dateA = a.date ? new Date(a.date).getTime() : 0;
         const dateB = b.date ? new Date(b.date).getTime() : 0;
