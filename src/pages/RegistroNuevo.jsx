@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, ArrowLeft, Stethoscope, User, FileText, CheckCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Stethoscope, User, FileText, CheckCircle, Loader2 } from 'lucide-react';
 import { patientSchema, clinicalSchema, diagnosisSchema } from '../lib/zod-schemas.js';
 import { apiClient } from '../lib/apiClient.js';
 
@@ -43,6 +43,9 @@ export function RegistroNuevo() {
   const [selectedImages, setSelectedImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [observacionesMedico, setObservacionesMedico] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const progressIntervalRef = useRef(null);
   const navigate = useNavigate();
 
   const currentStepData = STEPS[currentStep - 1];
@@ -173,6 +176,26 @@ export function RegistroNuevo() {
 
   const submitDiagnostico = async (data) => {
     setLoading(true);
+    setIsEvaluating(true);
+    setProgress(0);
+    
+    // Limpiar cualquier intervalo previo
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+    
+    // Simular progreso durante la evaluación
+    progressIntervalRef.current = setInterval(() => {
+      setProgress((prev) => {
+        // Acelerar al inicio, desacelerar al final (curva de progreso más realista)
+        if (prev < 90) {
+          const increment = prev < 30 ? 2 : prev < 70 ? 1.5 : 0.8;
+          return Math.min(prev + increment, 90);
+        }
+        return prev;
+      });
+    }, 200); // Actualizar cada 200ms
+
     try {
       // Formatear signos vitales a texto
       const signosVitalesTexto = formatSignosVitales(data);
@@ -199,8 +222,17 @@ export function RegistroNuevo() {
 
       // --- 2️⃣ Procesar la evaluación IA asociada ---
       console.log('🤖 Solicitando procesamiento IA...');
+      setProgress(30); // Avanzar a 30% después de crear diagnóstico
+      
       const iaResponse = await apiClient.procesarEvaluacionIA(diagnosticoResponse.id);
       console.log('✅ Evaluación IA generada:', iaResponse);
+
+      // Completar la barra de progreso
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      setProgress(100);
 
       // El endpoint de generación debería devolverte el id_eval_ia creado
       const idEvaluacion = iaResponse.id_eval_ia || iaResponse.evaluacion_guardada?.id_eval_ia;
@@ -208,10 +240,20 @@ export function RegistroNuevo() {
         throw new Error('No se recibió el id_eval_ia en la respuesta del servidor');
       }
 
-      navigate(`/evaluacion/resultado/${idEvaluacion}`);
+      // Pequeña pausa para mostrar el 100% antes de navegar
+      setTimeout(() => {
+        setIsEvaluating(false);
+        navigate(`/evaluacion/resultado/${idEvaluacion}`);
+      }, 500);
 
     } catch (error) {
       console.error('❌ Error al registrar diagnóstico o evaluación IA:', error);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      setIsEvaluating(false);
+      setProgress(0);
       alert(`Error: ${error.message}`);
     } finally {
       setLoading(false);
@@ -1505,6 +1547,7 @@ export function RegistroNuevo() {
               type="button"
               onClick={goBack}
               className="btn btn-outline"
+              disabled={loading}
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Anterior
@@ -1514,25 +1557,65 @@ export function RegistroNuevo() {
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary text-lg px-8 py-4 font-semibold shadow-lg hover:shadow-xl hover:bg-primary/90 transition-all"
+            className="group relative inline-flex items-center justify-center px-8 py-3 text-base font-semibold text-white bg-gradient-to-r from-[#582C83] to-[#7c308a] rounded-lg shadow-md hover:shadow-lg hover:from-[#7c308a] hover:to-[#9a3ba8] transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-md"
           >
-          {currentStep === 2 ? (
-            loading ? (
-              'Generando respuesta con IA...'
-            ) : (
-              'Evaluar con IA'
-            )
+            {currentStep === 2 ? (
+              loading ? (
+                <span className="flex items-center">
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Generando respuesta con IA...
+                </span>
+              ) : (
+                'Evaluar con IA'
+              )
             ) : currentStep === 4 ? (
-              loading ? 'Enviando...' : 'Evaluar con IA'
+              loading ? (
+                <span className="flex items-center">
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Enviando...
+                </span>
+              ) : 'Evaluar con IA'
             ) : (
               <>
                 Siguiente
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <ArrowRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
               </>
             )}
           </button>
         </div>
       </form>
+
+      {/* Barra de Progreso - Overlay */}
+      {isEvaluating && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <Loader2 className="w-12 h-12 animate-spin text-[#582C83] mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Evaluando con Inteligencia Artificial
+              </h3>
+              <p className="text-sm text-gray-600">
+                Analizando el caso clínico y generando recomendaciones...
+              </p>
+            </div>
+            
+            {/* Barra de progreso */}
+            <div className="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-[#582C83] to-[#7c308a] h-3 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              >
+                <div className="h-full bg-white bg-opacity-30 animate-pulse"></div>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center text-xs text-gray-500">
+              <span>Procesando...</span>
+              <span className="font-semibold">{Math.round(progress)}%</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

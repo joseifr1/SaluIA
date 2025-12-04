@@ -52,10 +52,41 @@ export const lastNameSchema = z.string()
 export const birthDateSchema = z.string()
   .min(1, 'Fecha de nacimiento es requerida')
   .refine((date) => {
-    const birthDate = new Date(date);
+    // Convertir DD/MM/YYYY a YYYY-MM-DD para parseo correcto
+    let dateToParse = date;
+    if (date.includes('/')) {
+      const parts = date.split('/');
+      if (parts.length === 3) {
+        const [day, month, year] = parts;
+        // Validar que los componentes sean números válidos
+        const dayNum = parseInt(day, 10);
+        const monthNum = parseInt(month, 10);
+        const yearNum = parseInt(year, 10);
+        
+        if (isNaN(dayNum) || isNaN(monthNum) || isNaN(yearNum)) {
+          return false;
+        }
+        
+        // Validar rangos básicos
+        if (dayNum < 1 || dayNum > 31 || monthNum < 1 || monthNum > 12 || yearNum < 1900) {
+          return false;
+        }
+        
+        dateToParse = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+    }
+    
+    const birthDate = new Date(dateToParse);
+    
+    // Verificar que la fecha sea válida
+    if (isNaN(birthDate.getTime())) {
+      return false;
+    }
+    
     const today = new Date();
     const maxAge = new Date();
     maxAge.setFullYear(today.getFullYear() - 120);
+    
     return birthDate <= today && birthDate >= maxAge;
   }, 'Fecha de nacimiento inválida');
 

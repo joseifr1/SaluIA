@@ -370,8 +370,107 @@ export function ResultadoEvaluacion() {
         {/* Recomendación del Sistema */}
         <div className="bg-white bg-opacity-50 rounded-lg p-4 mb-4 mx-6">
           <h3 className="font-medium mb-2">Recomendación del Sistema</h3>
-          <p className="text-sm text-gray-800">{evaluation.justificacion}</p>
-
+          <div className="text-sm text-gray-800 space-y-3">
+            {(() => {
+              if (!evaluation.justificacion) return null;
+              
+              // Función para renderizar texto con markdown básico
+              const renderMarkdownText = (text) => {
+                // Procesar negritas **texto**
+                const parts = [];
+                let lastIndex = 0;
+                const boldRegex = /\*\*(.+?)\*\*/g;
+                let match;
+                
+                while ((match = boldRegex.exec(text)) !== null) {
+                  // Agregar texto antes del match
+                  if (match.index > lastIndex) {
+                    parts.push(text.substring(lastIndex, match.index));
+                  }
+                  // Agregar texto en negrita
+                  parts.push(<strong key={match.index} className="font-semibold">{match[1]}</strong>);
+                  lastIndex = match.index + match[0].length;
+                }
+                
+                // Agregar texto restante
+                if (lastIndex < text.length) {
+                  parts.push(text.substring(lastIndex));
+                }
+                
+                return parts.length > 0 ? parts : text;
+              };
+              
+              // Dividir el texto en bloques (párrafos y listas)
+              const blocks = [];
+              const lines = evaluation.justificacion.split('\n');
+              let currentParagraph = [];
+              let currentList = [];
+              
+              const flushParagraph = () => {
+                if (currentParagraph.length > 0) {
+                  const paragraphText = currentParagraph.join(' ').trim();
+                  if (paragraphText) {
+                    blocks.push({ type: 'paragraph', content: paragraphText });
+                  }
+                  currentParagraph = [];
+                }
+              };
+              
+              const flushList = () => {
+                if (currentList.length > 0) {
+                  blocks.push({ type: 'list', items: currentList });
+                  currentList = [];
+                }
+              };
+              
+              for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                if (!line) {
+                  // Línea vacía: flush todo
+                  flushList();
+                  flushParagraph();
+                  continue;
+                }
+                
+                // Detectar si es un item de lista (empieza con - o *)
+                if (/^[-*]\s+/.test(line)) {
+                  flushParagraph();
+                  const listItem = line.replace(/^[-*]\s+/, '');
+                  currentList.push(listItem);
+                } else {
+                  // Es un párrafo normal
+                  flushList();
+                  currentParagraph.push(line);
+                }
+              }
+              
+              // Flush final
+              flushList();
+              flushParagraph();
+              
+              // Renderizar bloques
+              return blocks.map((block, index) => {
+                if (block.type === 'list') {
+                  return (
+                    <ul key={index} className="list-disc pl-6 space-y-2 my-2">
+                      {block.items.map((item, itemIndex) => (
+                        <li key={itemIndex} className="leading-relaxed">
+                          {renderMarkdownText(item)}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                } else {
+                  return (
+                    <p key={index} className="leading-relaxed">
+                      {renderMarkdownText(block.content)}
+                    </p>
+                  );
+                }
+              });
+            })()}
+          </div>
         </div>
 
         {/* Criterios aplicados */}
@@ -420,12 +519,36 @@ export function ResultadoEvaluacion() {
                 }
 
                 return Array.isArray(fuentes) && fuentes.length > 0 ? (
-                  fuentes.map((fuente, index) => (
-                    <li key={index}>
-                      <p className="font-semibold">{fuente.documento}</p>
-                      <p className="text-gray-700">{fuente.cita}</p>
-                    </li>
-                  ))
+                  fuentes.map((fuente, index) => {
+                    // Si es una fuente de documento (tiene documento y cita)
+                    if (fuente.documento && fuente.cita) {
+                      return (
+                        <li key={index} className="mb-3">
+                          <p className="font-semibold">{fuente.documento}</p>
+                          <p className="text-gray-700">{fuente.cita}</p>
+                        </li>
+                      );
+                    }
+                    // Si es un caso similar (tiene caso_id, similitud y relevancia)
+                    else if (fuente.caso_id && fuente.relevancia) {
+                      const similitudPorcentaje = fuente.similitud 
+                        ? (parseFloat(fuente.similitud) * 100).toFixed(1) 
+                        : 'N/A';
+                      return (
+                        <li key={index} className="mb-3">
+                          <p className="font-semibold">Caso similar: {fuente.caso_id}</p>
+                          <p className="text-gray-600 text-xs">Similitud: {similitudPorcentaje}%</p>
+                          <p className="text-gray-700 mt-1">{fuente.relevancia}</p>
+                        </li>
+                      );
+                    }
+                    // Fallback para otros formatos
+                    return (
+                      <li key={index} className="mb-3">
+                        <p className="text-gray-700">{JSON.stringify(fuente)}</p>
+                      </li>
+                    );
+                  })
                 ) : (
                   <li>No se registraron fuentes utilizadas.</li>
                 );
@@ -436,11 +559,61 @@ export function ResultadoEvaluacion() {
 
         {/* Modelo de IA */}
         {evaluation.modelo && (
-          <div className="bg-white bg-opacity-50 rounded-lg p-4 mb-6 mx-6">
+          <div className="bg-white bg-opacity-50 rounded-lg p-4 mb-4 mx-6">
             <h3 className="font-medium mb-2">Modelo de IA Utilizado</h3>
             <p className="text-sm text-gray-800">{evaluation.modelo}</p>
           </div>
         )}
+
+        {/* Tiempo de Respuesta */}
+        {(() => {
+          // Función auxiliar para formatear tiempo
+          const formatearTiempo = (segundos) => {
+            const seg = parseFloat(segundos);
+            if (isNaN(seg)) return null;
+            
+            if (seg < 60) {
+              return `${seg.toFixed(1)}s`;
+            } else if (seg < 3600) {
+              return `${(seg / 60).toFixed(1)}min`;
+            } else {
+              return `${(seg / 3600).toFixed(1)}h`;
+            }
+          };
+          
+          // Intentar obtener el tiempo de respuesta
+          let tiempoRespuesta = null;
+          
+          // Si existe el campo tiempo_respuesta directamente
+          if (evaluation.tiempo_respuesta) {
+            // Si es un número, formatearlo
+            if (typeof evaluation.tiempo_respuesta === 'number' || !isNaN(parseFloat(evaluation.tiempo_respuesta))) {
+              tiempoRespuesta = formatearTiempo(evaluation.tiempo_respuesta);
+            } else {
+              // Si es un string ya formateado, usarlo tal cual
+              tiempoRespuesta = evaluation.tiempo_respuesta;
+            }
+          }
+          // Si existe tiempo_respuesta_segundos, convertir a formato legible
+          else if (evaluation.tiempo_respuesta_segundos) {
+            tiempoRespuesta = formatearTiempo(evaluation.tiempo_respuesta_segundos);
+          }
+          // Si existen fechas de inicio y fin, calcular la diferencia
+          else if (evaluation.fecha_inicio && evaluation.fecha_fin) {
+            const inicio = new Date(evaluation.fecha_inicio);
+            const fin = new Date(evaluation.fecha_fin);
+            const diferenciaMs = fin - inicio;
+            const diferenciaSeg = diferenciaMs / 1000;
+            tiempoRespuesta = formatearTiempo(diferenciaSeg);
+          }
+          
+          return tiempoRespuesta ? (
+            <div className="bg-white bg-opacity-50 rounded-lg p-4 mb-6 mx-6">
+              <h3 className="font-medium mb-2">Tiempo de Respuesta</h3>
+              <p className="text-sm text-gray-800">{tiempoRespuesta}</p>
+            </div>
+          ) : null;
+        })()}
       </div>
       
 
